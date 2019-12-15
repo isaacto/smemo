@@ -6,19 +6,20 @@ facilities for it, e.g., `functools.cached_property` and
 `functools.lru_cache`.  Needless to say, many user-contributed
 facilities are also available.
 
-Most of them focuses ensures that the cache is nearly invisible to the
+Most of them focuses on ensuring that the cache is invisible to the
 user.  When you call a function decorated by `functools.lru_cache`,
-you don't really need to know that the function is cached.  That is
-usually a big merit, but at times this is a big drawback.
+you don't really need to know that the function value is cached.  That
+is usually a big merit, but at times this is a big drawback.
 
 The problem is on invalidation.  Most libraries spent a lot of efforts
 to keep track of them magically so that we don't need to worry about
 them.  But at times, all these work are not necessary or outright
 counterproductive.  The run of your program might be divided into
-parts, or sessions, where each session can benefited by having return
+parts, or sessions, where each session is benefited by having return
 values of functions, usually many of them, saved rather than
 recomputed.  But after a session, the saved values of the function is
-no longer valid, and must be recomputed if needed again.
+of little value or even may be invalid, so there is not much to be
+gained by keeping them in memory.
 
 In such cases, most other caching tools either do not help at all, or
 requires you to carefully find the functions being used by the session
@@ -26,14 +27,14 @@ and invalidate their caches one by one.
 
 This module uses a more explicit approach.  A "session" object is
 used, providing the cache required by the memoization process.  The
-availability of this object allows various operations, tricky in the
-approach of other libraries, to be trivial here.  They include:
+availability of this object makes a few operations, tricky in other
+libraries, to become trivial.  They include:
 
   * Invalidation of all caches of a session.
-  * One single function use different caches.
+  * One single function uses different caches for different calls.
   * Fine-grain control of whether values of a function should skip
     caching.
-  * Injection of value to a particular function for a session.
+  * Injection of values to a particular function for a session.
 
 In fact, the implementation of the module is so simple that the core
 of it can be done in just a couple of hours.
@@ -59,19 +60,20 @@ It can then be called like this:
     session = smemo.Session()
     print(efib(session, 5, 1, 3))
 
-Called like the above, the session contains entries like `{((2, 1, 3),
-()): (4, None)}`, the key contains a representation of the positional
-and keyword arguments, the values are the return value or exception
-raised.  The value can be observed without triggering a call to the
-inner function, by:
+After the call, the session contains entries like `{((2, 1, 3), ()):
+(4, None)}`, the key contains a hashable representation of the
+positional and keyword arguments, while the values are the return
+value or exception raised.  The value can be observed without
+triggering a call to the inner function, by:
 
     print(session.get_cache(efib, 5, 1, 3))
 
-Done like the above, the returned value of the function goes through
-`copy.deepcopy`, so that the caller can freely manipulate the returned
-object without affecting the cache.  If that is undesirable (usually
-because it slows things down or you really want the actual object
-returned), you would replace `@smemo.cached` by `@smemo.rcached`.
+The returned value of the function decorated by `@smemo.cached` goes
+through `copy.deepcopy`, so that the caller can freely manipulate the
+returned object without affecting the cache.  If that is undesirable
+(usually because it slows things down or you really want the actual
+object returned), you would replace `@smemo.cached` by
+`@smemo.rcached`.
 
 For many purposes these are good enough.  But at times some of the
 values (e.g., 3 and 1 above) are really constants for a session, and
@@ -123,7 +125,7 @@ function or for all functions, by the following respectively:
     session.invalidate_all(efib)
     session.invalidate_all()
 
-You can force a value into the cache, like one of this:
+You can force a value into the cache, like one of these:
 
     session.cache(efib, 5.0, 7)
     session.cache_exc(efib, RuntimeError('My error'), 7)
