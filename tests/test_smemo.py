@@ -6,13 +6,14 @@ import smemo
 
 
 @smemo.cached
-def func1(session: smemo.Session, n: int) -> int:
+def func1(session: smemo.BaseSession, n: int) -> int:
     if n <= 1:
         return 1
     return func1(session, n - 1) + func1(session, n - 2)
 
 
 def test_basic():
+    assert smemo.BaseSession().do_call(func1, func1, (), {}) is None
     session = smemo.Session()
     assert func1(session, 5) == 8
     session.invalidate_all()
@@ -20,7 +21,7 @@ def test_basic():
 
 
 @smemo.cached
-def func2(session: smemo.Session, n: int) -> int:
+def func2(session: smemo.BaseSession, n: int) -> int:
     counter = session.getval('counter')
     if n <= 1:
         return 1
@@ -54,6 +55,33 @@ def test_get_put():
     assert counter[0] == 14
 
 
+@smemo.gcached(ref=True, persistent=True)
+def do_count(session: smemo.BaseSession) -> typing.List[int]:
+    return smemo.getter(session, do_count)
+
+
+@smemo.cached
+def func2b(session: smemo.BaseSession, n: int) -> int:
+    if n <= 1:
+        return 1
+    do_count(session)[0] += 1
+    return func2b(session, n - 1) + func2b(session, n - 2)
+
+
+def test_get_put2():
+    session = smemo.Session()
+    count = [0]
+    do_count(session.setcache(count))
+    assert func2b(session, 5) == 8
+    assert count[0] == 4
+    assert func2b(session, 5) == 8
+    assert count[0] == 4
+    func2b(session.inv, 5)
+    assert func2b(session, 5) == 8
+    assert count[0] == 5
+    do_count(session.setcache(exc=RuntimeError('error')))
+
+
 def test_disabled():
     session = smemo.Session()
     counter = [0]
@@ -64,14 +92,14 @@ def test_disabled():
 
 
 @smemo.cached
-def func3(session: smemo.Session) -> None:
+def func3(session: smemo.BaseSession) -> None:
     counter = session.getval('counter')
     counter[0] += 1
     raise RuntimeError('hello')
 
 
 @smemo.rcached
-def func3a(session: smemo.Session) -> None:
+def func3a(session: smemo.BaseSession) -> None:
     counter = session.getval('counter')
     counter[0] += 1
     raise RuntimeError('hello')
@@ -93,7 +121,7 @@ def test_exc():
 
 
 @smemo.rcached
-def func4(session: smemo.Session, val: typing.List[int]) -> int:
+def func4(session: smemo.BaseSession, val: typing.List[int]) -> int:
     counter = session.getval('counter')
     counter[0] += 1
     return sum(val)
