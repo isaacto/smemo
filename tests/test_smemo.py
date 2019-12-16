@@ -79,6 +79,8 @@ def test_get_put2():
     func2b(session.inv, 5)
     assert func2b(session, 5) == 8
     assert count[0] == 5
+    assert func2b(session.callonly, 5) == 8
+    assert count[0] == 6
     do_count(session.setcache(exc=RuntimeError('error')))
 
 

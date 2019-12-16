@@ -74,13 +74,14 @@ class BaseSession:
         """
 
 
-class Session:
+class Session(BaseSession):
     "Session object to hold cached results"
     def __init__(self) -> None:
         self._disabled = False
         self._cache \
             = {}  # type: typing.Dict[FuncType, typing.Dict[KeyType, ResType]]
         self.inv = InvalidatorSession(self)
+        self.callonly = CallOnlySession(self)
 
     def setcache(self, ret: typing.Any = None,
                  exc: typing.Optional[Exception] = None) -> 'SetCacheSession':
@@ -209,6 +210,22 @@ class InvalidatorSession(BaseSession):
         """
         self._session.invalidate(func, *args, **kwargs)
         return None
+
+
+class CallOnlySession(BaseSession):
+    "Session which performs call only without caching"
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def do_call(self, func: FuncType, actual: FuncType,
+                args: PosType, kwargs: KwdType) -> typing.Any:
+        """Call a function without caching
+
+        This normally calls a function directly, but may be overridden
+        for other behavior.
+
+        """
+        return actual(self._session, *args, **kwargs)
 
 
 class SetCacheSession(BaseSession):

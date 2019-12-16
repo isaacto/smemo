@@ -139,11 +139,9 @@ all function values cached.  If a function is marked as "persistent",
 the values cached for it can only be invalidated more explicitly.
 This is done by using `@smemo.gcached(persistent=True)` instead of
 `@smemo.cached`, or (more commonly) using `@smemo.gcached(ref=True,
-persistent=True)` instead of `@smemo.rcached`.  This is the mechanism
-used by `getval` and `putval` to avoid getting values removed.  If you
-want to avoid these calls (which mypy cannot check for type errors),
-you can create functions returning the correct type and mark them as
-persistent instead.
+persistent=True)` instead of `@smemo.rcached`.  Under the hood,
+`getval` and `putval` is just cache of a function, where the
+"persistent" mechanism is used to avoid getting values removed.
 
 You can force a value into the cache, like one of these:
 
@@ -158,9 +156,24 @@ have alternative methods which allows mypy to catch type errors:
     efib(session.setcache(5.0), 7)
     efib(session.setcache(exception=RuntimeError('My error')), 7)
 
-Finally, you can call a function without caching it, by:
+So, if you want to avoid `getval` and `setval` (which mypy cannot
+check for type errors), you can create functions returning the correct
+type and mark them as persistent instead:
+
+    @smemo.gcached(ref=True, persistent=True)
+    def mydict(session: smemo.BaseSession, a: str) -> typing.Dict[str, float]:
+        raise RuntimeError(f'No value set for {a}')
+
+Then you can put and get values as follows:
+
+    mydict(session.setcache({'pi': 3.1415936, 'e': 2.7182818}), 'const')
+    print(mydict(session, 'const')['pi'])
+
+Finally, you can call a function without caching it, by either of the
+following:
 
     session.call(efib, 7)
+    efib(session.callonly, 7)
 
 The skipping of caching does not extend to the calls made by efib.  If
 you want that, you can do the following:
