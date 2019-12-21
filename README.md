@@ -198,35 +198,35 @@ BaseSession interface, which the Session class is written against.  If
 you want your own facilities, you might want to provide your own
 implementation.  It is a rather simple interface:
 
-    * `get_cache(func, *args, **kwargs)`
+  * `get_cache(func, *args, **kwargs)`
 
-        * When the user calls the defined function, the function
-          object and the positional/keyword arguments are passed to
-          this method to find a cache entry, which should be in the
-          form `(ret_val, exception)`, where the `ret_val` is used if
-          `exception` is None.
+      * When the user calls the defined function, the function
+        object and the positional/keyword arguments are passed to
+        this method to find a cache entry, which should be in the
+        form `(ret_val, exception)`, where the `ret_val` is used if
+        `exception` is None.
 
-    * `do_call(func, actual, args, kwargs)`
+  * `do_call(func, actual, args, kwargs)`
 
-        * When cache entry is not found or is skipped, this function
-          will be called to obtain a value to return to the function
-          caller.
+      * When cache entry is not found or is skipped, this function
+        will be called to obtain a value to return to the function
+        caller.
 
-    * `cache_exc(func, _exc, *args, **kwargs)`
+  * `cache_exc(func, _exc, *args, **kwargs)`
 
-        * When the `do_call` method generates an exception, this
-          function is called to ask the session object to cache the
-          resulting exception.  Note that we usually define the method
-          to have the exception argument named like `_exc`, because
-          the name could clash with names in `kwargs`.
+      * When the `do_call` method generates an exception, this
+        function is called to ask the session object to cache the
+        resulting exception.  Note that we usually define the method
+        to have the exception argument named like `_exc`, because
+        the name could clash with names in `kwargs`.
 
-    * `cache_val(func, _val, *args, **kwargs)`
+  * `cache_val(func, _val, *args, **kwargs)`
 
-        * When the `do_call` method returns a value, this function is
-          called to ask the session object to cache the result.  Note
-          that we usually define the method to have the exception
-          argument named like `_val`, because the name could clash
-          with names in `kwargs`.
+      * When the `do_call` method returns a value, this function is
+        called to ask the session object to cache the result.  Note
+        that we usually define the method to have the exception
+        argument named like `_val`, because the name could clash
+        with names in `kwargs`.
 
 Cache control is actually done by creative use of the interface.  For
 example, `session.inv` is a BaseSession object which returns None upon
