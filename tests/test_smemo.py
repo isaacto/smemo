@@ -39,7 +39,7 @@ def test_get_put():
     assert counter[0] == 4
     assert func2(session, 5) == 8
     assert counter[0] == 4
-    assert session.call(func2, 5) == 8
+    assert func2(session.callonly, 5) == 8
     assert counter[0] == 5
     session.invalidate(func2, 5)
     assert func2(session, 5) == 8
@@ -143,3 +143,13 @@ def test_ref():
     assert counter[0] == 3
     assert func4(session, val=[1, 2]) == 3
     assert counter[0] == 3
+
+
+def test_nested():
+    parent = smemo.Session()
+    child = smemo.Session(parent)
+    parent.putval(10, 'val')
+    assert child.getval('val') == 10
+    child.putval(11, 'val')
+    assert parent.getval('val') == 10
+    assert child.getval('val') == 11

@@ -7,7 +7,6 @@ Allow functions to be written naturally with explicit cache control.
 import contextlib
 import copy
 import functools
-import inspect
 import pickle
 import typing
 
@@ -76,10 +75,11 @@ class BaseSession:
 
 class Session(BaseSession):
     "Session object to hold cached results"
-    def __init__(self) -> None:
+    def __init__(self, parent: BaseSession = None) -> None:
         self._disabled = False
         self._cache \
             = {}  # type: typing.Dict[FuncType, typing.Dict[KeyType, ResType]]
+        self._parent = parent
         self.inv = InvalidatorSession(self)
         self.callonly = CallOnlySession(self)
 
@@ -114,17 +114,6 @@ class Session(BaseSession):
         """
         self.cache(getter, val, *args, **kwargs)
 
-    def call(self, func: FuncType, *args: typing.Any,
-             **kwargs: typing.Any) -> typing.Any:
-        """Call a function without caching
-
-        This calls a function decorated with @cached or @rcached.  The
-        first session argument is automatically inserted.
-
-        """
-        inner = inspect.getclosurevars(func)[0]['func']
-        return inner(self, *args, **kwargs)
-
     def cache(self, func: FuncType, _val: typing.Any,
               *args: typing.Any, **kwargs: typing.Any) -> None:
         self._cache_store(func, args, kwargs, (_val, None))
@@ -145,8 +134,11 @@ class Session(BaseSession):
                   *args: typing.Any, **kwargs: typing.Any) \
             -> typing.Optional[ResType]:
         if func not in self._cache:
-            return None
-        return self._cache[func].get(self._key(args, kwargs))
+            ret = None
+        else:
+            ret = self._cache[func].get(self._key(args, kwargs))
+        return ret if (ret is not None or self._parent is None) \
+            else self._parent.get_cache(func, *args, **kwargs)
 
     def invalidate(self, func: FuncType,
                    *args: typing.Any, **kwargs: typing.Any) -> None:

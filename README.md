@@ -85,7 +85,7 @@ cache.  In such cases you can rewrite your function as follows:
     def efib(session: smemo.BaseSession, n: int) -> float:
         "Return an extended Fibonacci number where efib[0] = a0, efib[1] = a1"
         if n == 0:
-            return session.getval('a0')  # Same as smemo.getter('a0')
+            return session.getval('a0')  # Same as smemo.getter(session, 'a0')
         if n == 1:
             return session.getval('a1')
         return efib(session, n - 1) + efib(session, n - 2)
@@ -105,8 +105,18 @@ not even think you want to.  For example, you can read a whole config
 file and put it to your session.  Now your functions can freely use
 the configuration values, and you don't need to worry about having
 cache which has huge entries, and at the same time you don't need to
-worry about cross-talk when your function is called with multiple
-sessions concurrently.
+worry about cross-talk when your function is called concurrently with
+different sessions.
+
+## Nested session
+
+At times you may have some of your data to live for a shorter lifetime
+than the rest.  In such case, you might find it beneficial to have a
+hierarchy of sessions.  The Session class `__init__` takes a "parent"
+BaseSession argument.  When cache is fetched and no entry is found,
+this parent will be consulted.  Whenever cache entry is set it is
+local.  This way you can populate some entry in a global session, and
+create a "sub-session" which will hold any additional cache entries.
 
 ## Cache control
 
@@ -169,10 +179,8 @@ Then you can put and get values as follows:
     mydict(session.setcache({'pi': 3.1415936, 'e': 2.7182818}), 'const')
     print(mydict(session, 'const')['pi'])
 
-Finally, you can call a function without caching it, by either of the
-following:
+Finally, you can call a function without caching it:
 
-    session.call(efib, 7)
     efib(session.callonly, 7)
 
 The skipping of caching does not extend to the calls made by efib.  If
@@ -182,3 +190,47 @@ you want that, you can do the following:
         print(efib(session, 7))
 
 Caching would be disabled for all the duration of the above efib call.
+
+## BaseSession interface
+
+All the functionality of the memoization system is provided by the
+BaseSession interface, which the Session class is written against.  If
+you want your own facilities, you might want to provide your own
+implementation.  It is a rather simple interface:
+
+    * `get_cache(func, *args, **kwargs)`
+
+        * When the user calls the defined function, the function
+          object and the positional/keyword arguments are passed to
+          this method to find a cache entry, which should be in the
+          form `(ret_val, exception)`, where the `ret_val` is used if
+          `exception` is None.
+
+    * `do_call(func, actual, args, kwargs)`
+
+        * When cache entry is not found or is skipped, this function
+          will be called to obtain a value to return to the function
+          caller.
+
+    * `cache_exc(func, _exc, *args, **kwargs)`
+
+        * When the `do_call` method generates an exception, this
+          function is called to ask the session object to cache the
+          resulting exception.  Note that we usually define the method
+          to have the exception argument named like `_exc`, because
+          the name could clash with names in `kwargs`.
+
+    * `cache_val(func, _val, *args, **kwargs)`
+
+        * When the `do_call` method returns a value, this function is
+          called to ask the session object to cache the result.  Note
+          that we usually define the method to have the exception
+          argument named like `_val`, because the name could clash
+          with names in `kwargs`.
+
+Cache control is actually done by creative use of the interface.  For
+example, `session.inv` is a BaseSession object which returns None upon
+`get_cache` or `do_call`, but invalidate cache entry upon `cache_val`.
+And `session.setcache` returns an object which is just the same as
+`session.inv` but instead of invalidating the cache, it forces a
+return value or exception to the cache.
