@@ -178,6 +178,14 @@ Then you can put and get values as follows:
 
     mydict(session.setcache({'pi': 3.1415936, 'e': 2.7182818}), 'const')
     print(mydict(session, 'const')['pi'])
+    
+Note that this mechanism, when combined with nested sessions, can be
+used as a poor man dependency injection mechanism.  All you need to do
+is to pass a session when you invoke any top-level function, and
+obtain all dependencies from the session.  The main program would
+populate the main session and perhaps create sub-sessions as needed,
+before calling the top-level functions.  Your unit tests can use mock
+objects instead of actual objects as desired.
 
 Finally, you can call a function without caching it:
 
