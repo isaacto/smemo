@@ -137,6 +137,10 @@ class Session(BaseSession):
             ret = None
         else:
             ret = self._cache[func].get(self._key(args, kwargs))
+        if isinstance(ret, tuple) and ret[1]:
+            typing.cast(
+                Exception, ret[1]
+            ).__traceback__ = None  # type: ignore
         return ret if (ret is not None or self._parent is None) \
             else self._parent.get_cache(func, *args, **kwargs)
 
