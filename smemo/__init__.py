@@ -254,7 +254,18 @@ def gcached(ref: bool = False, persistent: bool = False) \
         @functools.wraps(func)
         def _func(session: BaseSession, *args: typing.Any,
                   **kwargs: typing.Any) -> typing.Any:
-            ret = _maybe_call(session, _func, func, args, kwargs)
+            entry = session.get_cache(_func, *args, **kwargs)
+            if entry:
+                if entry[1]:
+                    entry[1].__traceback__ = None  # type: ignore
+                    raise entry[1]
+                return entry[0]
+            try:
+                ret = session.do_call(_func, func, args, kwargs)
+            except Exception as exc:
+                session.cache_exc(_func, exc, *args, **kwargs)
+                raise
+            session.cache(_func, ret, *args, **kwargs)
             return ret if ref else copy.deepcopy(ret)
         if persistent:
             PERSISTENT_FUNCS.add(_func)
@@ -267,23 +278,6 @@ def getter(session: BaseSession, *args: typing.Any, **kwargs: typing.Any) \
         -> typing.Any:
     "The underlying function to get a value from the cache"
     raise KeyError('No value cached for args %s %s' % (args, kwargs))
-
-
-def _maybe_call(session: BaseSession, func: FuncType, actual: FuncType,
-                args: PosType, kwargs: KwdType) -> typing.Any:
-    ret = session.get_cache(func, *args, **kwargs)
-    if ret:
-        if ret[1]:
-            ret[1].__traceback__ = None  # type: ignore
-            raise ret[1]
-        return ret[0]
-    try:
-        res = session.do_call(func, actual, args, kwargs)
-    except Exception as exc:
-        session.cache_exc(func, exc, *args, **kwargs)
-        raise
-    session.cache(func, res, *args, **kwargs)
-    return res
 
 
 def cached(func: FuncT) -> FuncT:
