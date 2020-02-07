@@ -137,10 +137,6 @@ class Session(BaseSession):
             ret = None
         else:
             ret = self._cache[func].get(self._key(args, kwargs))
-        if isinstance(ret, tuple) and ret[1]:
-            typing.cast(
-                Exception, ret[1]
-            ).__traceback__ = None  # type: ignore
         return ret if (ret is not None or self._parent is None) \
             else self._parent.get_cache(func, *args, **kwargs)
 
@@ -259,10 +255,7 @@ def gcached(ref: bool = False, persistent: bool = False) \
         def _func(session: BaseSession, *args: typing.Any,
                   **kwargs: typing.Any) -> typing.Any:
             ret = _maybe_call(session, _func, func, args, kwargs)
-            exc = ret[1]
-            if exc:
-                raise exc
-            return ret[0] if ref else copy.deepcopy(ret[0])
+            return ret if ref else copy.deepcopy(ret)
         if persistent:
             PERSISTENT_FUNCS.add(_func)
         return typing.cast(FuncT, _func)
@@ -277,17 +270,20 @@ def getter(session: BaseSession, *args: typing.Any, **kwargs: typing.Any) \
 
 
 def _maybe_call(session: BaseSession, func: FuncType, actual: FuncType,
-                args: PosType, kwargs: KwdType) -> ResType:
+                args: PosType, kwargs: KwdType) -> typing.Any:
     ret = session.get_cache(func, *args, **kwargs)
     if ret:
-        return ret
+        if ret[1]:
+            ret[1].__traceback__ = None  # type: ignore
+            raise ret[1]
+        return ret[0]
     try:
         res = session.do_call(func, actual, args, kwargs)
     except Exception as exc:
         session.cache_exc(func, exc, *args, **kwargs)
-        return (None, exc)
+        raise
     session.cache(func, res, *args, **kwargs)
-    return (res, None)
+    return res
 
 
 def cached(func: FuncT) -> FuncT:
