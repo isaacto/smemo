@@ -27,6 +27,7 @@ PERSISTENT_FUNCS = set()  # type: typing.Set[FuncType]
 
 class BaseSession:
     "Session management interface"
+
     def get_cache(self, func: FuncType, *args: typing.Any,
                   **kwargs: typing.Any) -> typing.Any:
         "Get the cached result for a function"
@@ -182,10 +183,6 @@ class Session(BaseSession):
             kwlist = (PICKLED, pickle.dumps(kwlist))
         return (args, kwlist)
 
-    def do_call(self, func: FuncType, actual: FuncType, args: PosType,
-                kwargs: KwdType) -> typing.Any:
-        return actual(self, *args, **kwargs)
-
 
 class InvalidatorSession(BaseSession):
     "Session which performs invalidation"
@@ -261,7 +258,13 @@ def gcached(ref: bool = False, persistent: bool = False) \
                     raise entry[1]
                 return entry[0]
             try:
-                ret = session.do_call(_func, func, args, kwargs)
+                if isinstance(session, Session):
+                    # Inline this instead of putting it in do_call, so
+                    # that we don't add one more stack frame in the
+                    # normal case.  This makes errors easier to trace.
+                    ret = func(session, *args, **kwargs)
+                else:
+                    ret = session.do_call(_func, func, args, kwargs)
             except Exception as exc:
                 session.cache_exc(_func, exc, *args, **kwargs)
                 raise
