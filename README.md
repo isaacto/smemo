@@ -214,31 +214,32 @@ implementation.  It is a rather simple interface:
         form `(ret_val, exception)`, where the `ret_val` is used if
         `exception` is None.
 
-  * `do_call(func, actual, args, kwargs)`
+  * `pre_call(func, args, kwargs)`
 
-      * When cache entry is not found or is skipped, this function
-        will be called to obtain a value to return to the function
-        caller.
+      * When cache entry is not found or is skipped, this function is
+        called to determine the session to call the actual function.
+        If None is returned, the actual function is not called, and it
+        is treated as None being returned.
 
   * `cache_exc(func, _exc, *args, **kwargs)`
 
-      * When the `do_call` method generates an exception, this
-        function is called to ask the session object to cache the
-        resulting exception.  Note that we usually define the method
-        to have the exception argument named like `_exc`, because
-        the name could clash with names in `kwargs`.
+      * When the actual call generates an exception, this function is
+        called to ask the session object to cache the resulting
+        exception.  Note that we usually define the method to have the
+        exception argument named like `_exc`, because the name could
+        clash with names in `kwargs`.
 
   * `cache_val(func, _val, *args, **kwargs)`
 
-      * When the `do_call` method returns a value, this function is
-        called to ask the session object to cache the result.  Note
-        that we usually define the method to have the exception
-        argument named like `_val`, because the name could clash
-        with names in `kwargs`.
+      * When the actual call returns a value, this function is called
+        to ask the session object to cache the result.  Note that we
+        usually define the method to have the exception argument named
+        like `_val`, because the name could clash with names in
+        `kwargs`.
 
 Cache control is actually done by creative use of the interface.  For
 example, `session.inv` is a BaseSession object which returns None upon
-`get_cache` or `do_call`, but invalidate cache entry upon `cache_val`.
-And `session.setcache` returns an object which is just the same as
-`session.inv` but instead of invalidating the cache, it forces a
-return value or exception to the cache.
+`get_cache` or `pre_call`, but invalidate cache entry upon
+`cache_val`.  And `session.setcache` returns an object which is just
+the same as `session.inv` but instead of invalidating the cache, it
+forces a return value or exception to the cache.
