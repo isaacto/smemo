@@ -33,16 +33,16 @@ class BaseSession:
         "Get the cached result for a function"
         return None
 
-    def do_call(self, func: FuncType, actual: FuncType,
-                args: PosType, kwargs: KwdType) -> typing.Any:
-        """Call a function without caching
+    def pre_call(self, func: FuncType, args: PosType,
+                 kwargs: KwdType) -> typing.Optional['BaseSession']:
+        """Determine what to do before making an actual call
 
-        This normally calls a function directly, but may be overridden
-        for other behavior.
+        This returns the session for making the call.  If it returns
+        None, the call is skipped and it is treated as if the function
+        returns None.
 
         Args:
             func: The decorated function
-            actual: The corresponding undecorated function
             args: The positional arguments for the call
             kwargs: The keyword arguments for the call
 
@@ -83,6 +83,10 @@ class Session(BaseSession):
         self._parent = parent
         self.inv = InvalidatorSession(self)
         self.callonly = CallOnlySession(self)
+
+    def pre_call(self, func: FuncType,
+                 args: PosType, kwargs: KwdType) -> typing.Any:
+        return self
 
     def setcache(self, ret: typing.Any = None,
                  exc: typing.Optional[Exception] = None) -> 'SetCacheSession':
@@ -189,14 +193,8 @@ class InvalidatorSession(BaseSession):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def do_call(self, func: FuncType, actual: FuncType,
-                args: PosType, kwargs: KwdType) -> typing.Any:
-        """Call a function without caching
-
-        This normally calls a function directly, but may be overridden
-        for other behavior.
-
-        """
+    def pre_call(self, func: FuncType, args: PosType,
+                 kwargs: KwdType) -> typing.Optional['BaseSession']:
         self._session.invalidate(func, *args, **kwargs)
         return None
 
@@ -206,15 +204,15 @@ class CallOnlySession(BaseSession):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def do_call(self, func: FuncType, actual: FuncType,
-                args: PosType, kwargs: KwdType) -> typing.Any:
+    def pre_call(self, func: FuncType,
+                 args: PosType, kwargs: KwdType) -> typing.Any:
         """Call a function without caching
 
         This normally calls a function directly, but may be overridden
         for other behavior.
 
         """
-        return actual(self._session, *args, **kwargs)
+        return self._session
 
 
 class SetCacheSession(BaseSession):
@@ -258,13 +256,10 @@ def gcached(ref: bool = False, persistent: bool = False) \
                     raise entry[1]
                 return entry[0]
             try:
-                if isinstance(session, Session):
-                    # Inline this instead of putting it in do_call, so
-                    # that we don't add one more stack frame in the
-                    # normal case.  This makes errors easier to trace.
-                    ret = func(session, *args, **kwargs)
-                else:
-                    ret = session.do_call(_func, func, args, kwargs)
+                ret = None  # type: typing.Any
+                call_session = session.pre_call(_func, args, kwargs)
+                if call_session:
+                    ret = func(call_session, *args, **kwargs)
             except Exception as exc:
                 session.cache_exc(_func, exc, *args, **kwargs)
                 raise

@@ -13,7 +13,7 @@ def func1(session: smemo.BaseSession, n: int) -> int:
 
 
 def test_basic():
-    assert smemo.BaseSession().do_call(func1, func1, (), {}) is None
+    assert smemo.BaseSession().pre_call(func1, (), {}) is None
     session = smemo.Session()
     assert func1(session, 5) == 8
     session.invalidate_all()
