@@ -30,12 +30,19 @@ class BaseSession:
 
     def get_cache(self, func: FuncType, *args: typing.Any,
                   **kwargs: typing.Any) -> typing.Any:
-        "Get the cached result for a function"
+        """Get the cached result for a function
+
+        Args:
+            func: The decorated function
+            args: The arguments used to call the function
+            kwargs: The keyword arguments used to call the function
+
+        """
         return None
 
     def pre_call(self, func: FuncType, args: PosType,
                  kwargs: KwdType) -> typing.Optional['BaseSession']:
-        """Determine what to do before making an actual call
+        """Called before actually checking cache
 
         This returns the session for making the call.  If it returns
         None, the call is skipped and it is treated as if the function
@@ -75,12 +82,27 @@ class BaseSession:
 
 
 class Session(BaseSession):
-    "Session object to hold cached results"
-    def __init__(self, parent: BaseSession = None) -> None:
+    """Session object to hold cached results
+
+    Args:
+
+        parent: Use a parent in addition to its own cache.  If a value
+            is not found in the cache when upon a get_cache operation,
+            the parent is consulted.
+
+        restrict: Restrict local cache to these functions.  If not
+            None, functions not in restricted will always consult the
+            parent, for get_cache, cache and cache_exc operations
+
+    """
+    def __init__(self, parent: BaseSession = None,
+                 restrict: typing.Optional[typing.Iterable[FuncType]]
+                     = None) -> None:
         self._disabled = False
         self._cache \
             = {}  # type: typing.Dict[FuncType, typing.Dict[KeyType, ResType]]
         self._parent = parent
+        self._restrict = None if restrict is None else set(restrict)
         self.inv = InvalidatorSession(self)
         self.callonly = CallOnlySession(self)
 
@@ -100,32 +122,45 @@ class Session(BaseSession):
         return SetCacheSession(self, ret, exc)
 
     def getval(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
-        """Get values set by put()
+        """Get values set by putval()
 
-        The other arguments should match those of put() exactly.
+        The other arguments should match those of putval() exactly.
 
         """
         return getter(self, *args, **kwargs)
 
     def putval(self, val: typing.Any, *args: typing.Any,
                **kwargs: typing.Any) -> typing.Any:
-        """Put values to be used by get()
+        """Put values to be used by getval()
 
         Use the session as a key-value store.  It actually uses the
         same caching mechanism to hold the data, so you can use any
         number of positional and keyword parameters to identify the
         value.
 
+        Args:
+            val: The value to put
+            args: The arguments to identify the value
+            kwargs: The keyword arguments to identify the value
+
         """
         self.cache(getter, val, *args, **kwargs)
 
     def cache(self, func: FuncType, _val: typing.Any,
               *args: typing.Any, **kwargs: typing.Any) -> None:
-        self._cache_store(func, args, kwargs, (_val, None))
+        if self._parent_only(func):
+            assert self._parent
+            self._parent.cache(func, _val, *args, **kwargs)
+        else:
+            self._cache_store(func, args, kwargs, (_val, None))
 
     def cache_exc(self, func: FuncType, _exc: Exception,
                   *args: typing.Any, **kwargs: typing.Any) -> None:
-        self._cache_store(func, args, kwargs, (None, _exc))
+        if self._parent_only(func):
+            assert self._parent
+            self._parent.cache_exc(func, _exc, *args, **kwargs)
+        else:
+            self._cache_store(func, args, kwargs, (None, _exc))
 
     def _cache_store(self, func: FuncType, args: PosType,
                      kwargs: KwdType, entry: ResType) -> None:
@@ -138,12 +173,14 @@ class Session(BaseSession):
     def get_cache(self, func: FuncType,
                   *args: typing.Any, **kwargs: typing.Any) \
             -> typing.Optional[ResType]:
-        if func not in self._cache:
-            ret = None
-        else:
+        ret = None
+        if not self._parent_only(func) and func in self._cache:
             ret = self._cache[func].get(self._key(args, kwargs))
         return ret if (ret is not None or self._parent is None) \
             else self._parent.get_cache(func, *args, **kwargs)
+
+    def _parent_only(self, func: FuncType) -> bool:
+        return self._restrict is not None and func not in self._restrict
 
     def invalidate(self, func: FuncType,
                    *args: typing.Any, **kwargs: typing.Any) -> None:

@@ -117,6 +117,9 @@ BaseSession argument.  When cache is fetched and no entry is found,
 this parent will be consulted.  Whenever cache entry is set it is
 local.  This way you can populate some entry in a global session, and
 create a "sub-session" which will hold any additional cache entries.
+With an additional `restrict` argument, you can also specify that only
+some functions will be cached in the new objects, all other functions
+are handled solely in the parent.
 
 ## Cache control
 

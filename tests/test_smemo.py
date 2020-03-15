@@ -153,3 +153,12 @@ def test_nested():
     child.putval(11, 'val')
     assert parent.getval('val') == 10
     assert child.getval('val') == 11
+    child2 = smemo.Session(parent, restrict=[])
+    parent.putval(10, 'val')
+    assert child2.getval('val') == 10
+    child2.putval(11, 'val')
+    assert parent.getval('val') == 11
+    assert child2.getval('val') == 11
+    smemo.getter(child2.setcache(exc=RuntimeError('hello')), 'val')
+    with pytest.raises(RuntimeError):
+        parent.getval('val')
