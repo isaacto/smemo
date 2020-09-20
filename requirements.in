@@ -1,0 +1,8 @@
+# Requirements for development
+mypy
+pylint
+pytest
+pytest-cov
+twine
+wheel
+makefilemenu
