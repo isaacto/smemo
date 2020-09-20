@@ -4,6 +4,7 @@ Allow functions to be written naturally with explicit cache control.
 
 """
 
+import collections
 import contextlib
 import copy
 import functools
@@ -23,6 +24,8 @@ PICKLED = object()
 
 
 PERSISTENT_FUNCS = set()  # type: typing.Set[FuncType]
+PKEY_FUNCS = collections.defaultdict(
+    set)  # type: typing.Dict[str, typing.Set[FuncType]]
 
 
 class BaseSession:
@@ -194,6 +197,9 @@ class Session(BaseSession):
         If func is not specified, it invalidate all functions that are
         not persistent.
 
+        Args:
+            func: The function to invalidate all cache
+
         """
         if func:
             self._cache.pop(func, None)
@@ -202,6 +208,17 @@ class Session(BaseSession):
             if func in PERSISTENT_FUNCS:
                 continue
             del self._cache[func]
+
+    def invalidate_by_pkey(self, pkey: str) -> None:
+        """Invalidate all results for all function with a persistence key
+
+        Args:
+            pkey: The persistent key
+
+        """
+        for func in set(self._cache):
+            if func in PKEY_FUNCS.get(pkey, set()):
+                del self._cache[func]
 
     @contextlib.contextmanager
     def nocache(self) -> typing.Iterator[None]:
@@ -270,7 +287,7 @@ class SetCacheSession(BaseSession):
 FuncT = typing.TypeVar('FuncT', bound=typing.Callable[..., typing.Any])
 
 
-def gcached(ref: bool = False, persistent: bool = False) \
+def gcached(ref: bool = False, persistent: typing.Union[bool, str] = False) \
         -> typing.Callable[[FuncType], FuncType]:
     """Decorator to cache the return value of a function
 
@@ -278,8 +295,14 @@ def gcached(ref: bool = False, persistent: bool = False) \
     directly as a decorator.  For such usage, use cached or rcached.
 
     Args:
+
         ref: If False, copy.deepcopy is invoked before value is returned
-        persistent: If True, don't drop cached value upon invalidation
+
+        persistent: If True, don't drop cached value upon
+            invalidation.  If may be a string, which is called a
+            "persistence key", or pkey, and can be used to
+            mass-invalidate persistent functions of the same pkey in
+            the cache
 
     """
     def _deco(func: FuncT) -> FuncT:
@@ -302,8 +325,10 @@ def gcached(ref: bool = False, persistent: bool = False) \
                 raise
             session.cache(_func, ret, *args, **kwargs)
             return ret if ref else copy.deepcopy(ret)
-        if persistent:
+        if persistent is not False:
             PERSISTENT_FUNCS.add(_func)
+            if isinstance(persistent, str):
+                PKEY_FUNCS[persistent].add(_func)
         return typing.cast(FuncT, _func)
     return _deco
 

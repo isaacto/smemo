@@ -60,6 +60,11 @@ def do_count(session: smemo.BaseSession) -> typing.List[int]:
     return smemo.getter(session, do_count)
 
 
+@smemo.gcached(ref=True, persistent='test_pkey')
+def do_count2(session: smemo.BaseSession) -> typing.List[int]:
+    return do_count(session)
+
+
 @smemo.cached
 def func2b(session: smemo.BaseSession, n: int) -> int:
     if n <= 1:
@@ -81,7 +86,14 @@ def test_get_put2():
     assert count[0] == 5
     assert func2b(session.callonly, 5) == 8
     assert count[0] == 6
+    assert do_count2(session) is count
     do_count(session.setcache(exc=RuntimeError('error')))
+    with pytest.raises(RuntimeError):
+        do_count(session)
+    assert do_count2(session) is count
+    session.invalidate_by_pkey('test_pkey')
+    with pytest.raises(RuntimeError):
+        do_count2(session)
 
 
 def test_disabled():

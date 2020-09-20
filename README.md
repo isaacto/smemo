@@ -202,6 +202,20 @@ you want that, you can do the following:
 
 Caching would be disabled for all the duration of the above efib call.
 
+## Persistence keys
+
+The `persistent` keyword argument of `gcached()` mentioned above also
+allows the argument to be a string rather than just `True`.  In this
+case the argument is called a persistence key, or "pkey" in short.  It
+is used like `@gcached(persistent='my_key')`.  Just like a regular
+persistent function, the cached value can be invalidated by explicitly
+invalidating a function, but not by using `invalidate_all()`.  But
+another method `invalidate_by_pkey()` can be used to invalidate the
+function, together with all other functions tagged with the same pkey.
+For example, you might have some functions which do not need to be
+invalidated with `invalidate_all()`, but can be invalidated when a
+specific event happens which triggers `invalidate_by_pkey()`.
+
 ## BaseSession interface
 
 All the functionality of the memoization system is provided by the
