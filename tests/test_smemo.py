@@ -141,6 +141,13 @@ def func4(session: smemo.BaseSession, val: typing.List[int]) -> int:
     return sum(val)
 
 
+@smemo.prcached
+def func4a(session: smemo.BaseSession, val: typing.List[int]) -> int:
+    counter = session.getval('counter')
+    counter[0] += 1
+    return sum(val)
+
+
 def test_ref():
     session = smemo.Session()
     counter = [0]
@@ -155,6 +162,11 @@ def test_ref():
     assert counter[0] == 3
     assert func4(session, val=[1, 2]) == 3
     assert counter[0] == 3
+    assert func4a(session, val=[1, 2]) == 3
+    assert counter[0] == 4
+    session.invalidate_all()
+    assert func4a(session, val=[1, 2]) == 3
+    assert counter[0] == 4
 
 
 def test_nested():

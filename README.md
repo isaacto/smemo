@@ -151,10 +151,10 @@ For the last `session.invalidate` call, it actually doesn't invalidate
 all function values cached.  If a function is marked as "persistent",
 the values cached for it can only be invalidated more explicitly.
 This is done by using `@smemo.gcached(persistent=True)` instead of
-`@smemo.cached`, or (more commonly) using `@smemo.gcached(ref=True,
-persistent=True)` instead of `@smemo.rcached`.  Under the hood,
-`getval` and `putval` is just cache of a function, where the
-"persistent" mechanism is used to avoid getting values removed.
+`@smemo.cached`, or (more commonly) using `@smemo.prcached()` instead
+of `@smemo.rcached`.  Under the hood, `getval` and `putval` is just
+cache of a function, where the "persistent" mechanism is used to avoid
+getting values removed.
 
 You can force a value into the cache, like one of these:
 
