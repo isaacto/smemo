@@ -288,7 +288,7 @@ FuncT = typing.TypeVar('FuncT', bound=typing.Callable[..., typing.Any])
 
 
 def gcached(ref: bool = False, persistent: typing.Union[bool, str] = False) \
-        -> typing.Callable[[FuncType], FuncType]:
+        -> typing.Callable[[FuncT], FuncT]:
     """Decorator to cache the return value of a function
 
     This is the generic decorator, and must be called instead of used
