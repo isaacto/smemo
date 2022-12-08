@@ -4,56 +4,119 @@
 #
 #    pip-compile
 #
-astroid==2.9.0            # via pylint
-attrs==21.2.0             # via makefilemenu, pytest
-bleach==4.1.0             # via readme-renderer
-calf==0.3.2               # via makefilemenu
-certifi==2021.10.8        # via requests
-cffi==1.15.0              # via cryptography
-charset-normalizer==2.0.9  # via requests
-colorama==0.4.4           # via twine
-coverage[toml]==6.2       # via pytest-cov
-cryptography==36.0.0      # via secretstorage
-docutils==0.18.1          # via readme-renderer
-idna==3.3                 # via requests
-importlib-metadata==4.8.2  # via keyring, pluggy, pytest, twine
-iniconfig==1.1.1          # via pytest
-isort==5.10.1             # via pylint
-jeepney==0.7.1            # via keyring, secretstorage
-keyring==23.4.0           # via twine
-lazy-object-proxy==1.6.0  # via astroid
-makefilemenu==0.4.2       # via -r requirements.in
-mccabe==0.6.1             # via pylint
-mypy-extensions==0.4.3    # via mypy
-mypy==0.910               # via -r requirements.in
-packaging==21.3           # via bleach, pytest
-pkginfo==1.8.2            # via twine
-platformdirs==2.4.0       # via pylint
-pluggy==1.0.0             # via pytest
-py==1.11.0                # via pytest
-pycparser==2.21           # via cffi
-pygments==2.10.0          # via readme-renderer
-pylint==2.12.2            # via -r requirements.in
-pyparsing==3.0.6          # via packaging
-pytest-cov==3.0.0         # via -r requirements.in
-pytest==6.2.5             # via -r requirements.in, pytest-cov
-readme-renderer==30.0     # via twine
-requests-toolbelt==0.9.1  # via twine
-requests==2.26.0          # via requests-toolbelt, twine
-rfc3986==1.5.0            # via twine
-secretstorage==3.3.1      # via keyring
-six==1.16.0               # via bleach
-toml==0.10.2              # via mypy, pylint, pytest
-tomli==1.2.2              # via coverage
-tqdm==4.62.3              # via twine
-twine==3.7.0              # via -r requirements.in
-typed-ast==1.4.3          # via astroid, mypy
-typing-extensions==4.0.1  # via astroid, importlib-metadata, mypy, pylint
-urllib3==1.26.7           # via requests
-webencodings==0.5.1       # via bleach
-wheel==0.37.0             # via -r requirements.in
-wrapt==1.13.3             # via astroid
-zipp==3.6.0               # via importlib-metadata
+astroid==2.9.0
+    # via pylint
+attrs==21.2.0
+    # via
+    #   makefilemenu
+    #   pytest
+bleach==4.1.0
+    # via readme-renderer
+calf==0.3.2
+    # via makefilemenu
+certifi==2022.12.7
+    # via requests
+cffi==1.15.0
+    # via cryptography
+charset-normalizer==2.0.9
+    # via requests
+colorama==0.4.4
+    # via twine
+coverage[toml]==6.2
+    # via pytest-cov
+cryptography==36.0.0
+    # via secretstorage
+docutils==0.18.1
+    # via readme-renderer
+idna==3.3
+    # via requests
+importlib-metadata==4.8.2
+    # via
+    #   keyring
+    #   twine
+iniconfig==1.1.1
+    # via pytest
+isort==5.10.1
+    # via pylint
+jeepney==0.7.1
+    # via
+    #   keyring
+    #   secretstorage
+keyring==23.4.0
+    # via twine
+lazy-object-proxy==1.6.0
+    # via astroid
+makefilemenu==0.4.2
+    # via -r requirements.in
+mccabe==0.6.1
+    # via pylint
+mypy==0.910
+    # via -r requirements.in
+mypy-extensions==0.4.3
+    # via mypy
+packaging==21.3
+    # via
+    #   bleach
+    #   pytest
+pkginfo==1.8.2
+    # via twine
+platformdirs==2.4.0
+    # via pylint
+pluggy==1.0.0
+    # via pytest
+py==1.11.0
+    # via pytest
+pycparser==2.21
+    # via cffi
+pygments==2.10.0
+    # via readme-renderer
+pylint==2.12.2
+    # via -r requirements.in
+pyparsing==3.0.6
+    # via packaging
+pytest==6.2.5
+    # via
+    #   -r requirements.in
+    #   pytest-cov
+pytest-cov==3.0.0
+    # via -r requirements.in
+readme-renderer==30.0
+    # via twine
+requests==2.26.0
+    # via
+    #   requests-toolbelt
+    #   twine
+requests-toolbelt==0.9.1
+    # via twine
+rfc3986==1.5.0
+    # via twine
+secretstorage==3.3.1
+    # via keyring
+six==1.16.0
+    # via bleach
+toml==0.10.2
+    # via
+    #   mypy
+    #   pylint
+    #   pytest
+tomli==1.2.2
+    # via coverage
+tqdm==4.62.3
+    # via twine
+twine==3.7.0
+    # via -r requirements.in
+typing-extensions==4.0.1
+    # via mypy
+urllib3==1.26.7
+    # via requests
+webencodings==0.5.1
+    # via bleach
+wheel==0.37.0
+    # via -r requirements.in
+wrapt==1.13.3
+    # via astroid
+zipp==3.6.0
+    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
