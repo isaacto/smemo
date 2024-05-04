@@ -5,7 +5,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='smemo',
-    version='0.6',
+    version='0.6.1',
     python_requires='~=3.5',
     author='Isaac To',
     author_email='isaac.to@gmail.com',
