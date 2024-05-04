@@ -93,7 +93,7 @@ class Session(BaseSession):
             None, functions not in restricted will always consult the
             parent, for get_cache, cache and cache_exc operations.
     """
-    def __init__(self, parent: BaseSession = None,
+    def __init__(self, parent: typing.Optional[BaseSession] = None,
                  restrict: typing.Optional[typing.Iterable[FuncType]]
                      = None) -> None:
         self._disabled = False
@@ -183,7 +183,7 @@ class Session(BaseSession):
         if func in self._cache:
             self._cache[func].pop(self._key(args, kwargs), None)
 
-    def invalidate_all(self, func: FuncType = None) -> None:
+    def invalidate_all(self, func: typing.Optional[FuncType] = None) -> None:
         """Invalidate all results, possibly restricted to a function call.
 
         If func is not specified, it invalidate all functions that are
