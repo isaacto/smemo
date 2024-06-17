@@ -108,7 +108,7 @@ twine==5.0.0
     # via -r requirements-dev.in
 typing-extensions==4.11.0
     # via mypy
-urllib3==2.2.1
+urllib3==2.2.2
     # via
     #   requests
     #   twine
