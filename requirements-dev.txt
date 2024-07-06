@@ -12,7 +12,7 @@ backports-tarfile==1.1.1
     # via jaraco-context
 calf==0.3.3
     # via makefilemenu
-certifi==2024.2.2
+certifi==2024.7.4
     # via requests
 cffi==1.16.0
     # via cryptography
