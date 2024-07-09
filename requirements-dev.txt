@@ -114,5 +114,5 @@ urllib3==2.2.1
     #   twine
 wheel==0.43.0
     # via -r requirements-dev.in
-zipp==3.18.1
+zipp==3.19.1
     # via importlib-metadata
