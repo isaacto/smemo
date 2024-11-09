@@ -56,12 +56,12 @@ def test_get_put():
 
 
 @smemo.gcached(ref=True, persistent=True)
-def do_count(session: smemo.BaseSession) -> typing.List[int]:
+def do_count(session: smemo.BaseSession, n: int = 0) -> typing.List[int]:
     return smemo.getter(session, do_count)
 
 
 @smemo.gcached(ref=True, persistent='test_pkey')
-def do_count2(session: smemo.BaseSession) -> typing.List[int]:
+def do_count2(session: smemo.BaseSession, n: int = 0) -> typing.List[int]:
     return do_count(session)
 
 
@@ -106,14 +106,14 @@ def test_disabled():
 
 
 @smemo.cached
-def func3(session: smemo.BaseSession) -> None:
+def func3(session: smemo.BaseSession, n: int = 0) -> None:
     counter = session.getval('counter')
     counter[0] += 1
     raise RuntimeError('hello')
 
 
 @smemo.rcached
-def func3a(session: smemo.BaseSession) -> None:
+def func3a(session: smemo.BaseSession, n: int = 0) -> None:
     counter = session.getval('counter')
     counter[0] += 1
     raise RuntimeError('hello')
@@ -169,14 +169,62 @@ def test_ref():
     assert counter[0] == 4
 
 
+@smemo.rcached
+def func5(session: smemo.BaseSession) -> int:
+    return 42
+
+
+@smemo.gcached(persistent='test_pkey')
+def func5b(session: smemo.BaseSession) -> int:
+    return 42
+
+
+def test_simple():
+    session = smemo.Session()
+
+    # Simple calls and caches
+    assert func5(session) == 42
+    assert func5b(session) == 42
+    assert func5(session) == 42
+    assert func5b(session) == 42
+
+    # Cache setting
+    func5(session.setcache(61))
+    func5b(session.setcache(61))
+    assert func5(session) == 61
+    assert func5b(session) == 61
+
+    # Invalidations
+    session.invalidate_by_pkey('test_pkey')
+    assert func5(session) == 61
+    assert func5b(session) == 42
+    session.invalidate(func5)
+    func5b(session.setcache(62))
+    assert func5(session) == 42
+    assert func5b(session.callonly) == 42
+    assert func5(session.inv) is None
+    assert func5(session) == 42
+    func5(session.setcache(62))
+
+    # Invalidate all
+    session.invalidate_all()
+    assert func5(session) == 42
+    assert func5b(session) == 62
+
+
 def test_nested():
     parent = smemo.Session()
     child = smemo.Session(parent)
     parent.putval(10, 'val')
+    func5(parent.setcache(62))
     assert child.getval('val') == 10
+    assert func5(child) == 62
     child.putval(11, 'val')
+    func5(child.setcache(63))
     assert parent.getval('val') == 10
     assert child.getval('val') == 11
+    assert func5(parent) == 62
+    assert func5(child) == 63
     child2 = smemo.Session(parent, restrict=[])
     parent.putval(10, 'val')
     assert child2.getval('val') == 10

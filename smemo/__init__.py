@@ -7,6 +7,7 @@ import collections
 import contextlib
 import copy
 import functools
+import inspect
 import pickle
 import typing
 
@@ -22,9 +23,17 @@ PICKLED = object()
 """Marker object to identify pickled keys."""
 
 
+MISSING = object()
+"""Marker object to denote missing value in cache."""
+
+
 PERSISTENT_FUNCS = set()  # type: typing.Set[FuncType]
 PKEY_FUNCS = collections.defaultdict(
     set)  # type: typing.Dict[str, typing.Set[FuncType]]
+
+
+def _no_arg(func: FuncType) -> bool:
+    return len(inspect.signature(func).parameters) <= 1
 
 
 class BaseSession:
@@ -32,15 +41,23 @@ class BaseSession:
 
     def get_cache(self, func: FuncType, *_args: typing.Any,
                   **_kwargs: typing.Any) -> typing.Any:
-        """Get the cached result for a function
+        """Get the cached result for a function.
 
         Args:
             func: The decorated function
             args: The arguments used to call the function
             kwargs: The keyword arguments used to call the function
-
         """
         _ = func
+
+    def simple_get_cache(self, func: FuncType) -> typing.Any:
+        """Like get_cache, but for no-arg functions.
+
+        Args:
+            func: The decorated function
+        """
+        _ = func
+        return MISSING
 
     def pre_call(self, _func: FuncType, _args: PosType,
                  _kwargs: KwdType) -> typing.Optional['BaseSession']:
@@ -54,6 +71,15 @@ class BaseSession:
             func: The decorated function.
             args: The positional arguments for the call.
             kwargs: The keyword arguments for the call.
+        """
+        return None
+
+    def simple_pre_call(
+            self, _func: FuncType) -> typing.Optional['BaseSession']:
+        """Like pre_call, but for no-arg functions.
+
+        Args:
+            func: The decorated function.
         """
         return None
 
@@ -78,6 +104,7 @@ class BaseSession:
             args: The positional arguments.
             kwargs: The keyword arguments.
         """
+        _ = func
 
 
 class Session(BaseSession):
@@ -99,6 +126,7 @@ class Session(BaseSession):
         self._disabled = False
         self._cache \
             = {}  # type: typing.Dict[FuncType, typing.Dict[KeyType, ResType]]
+        self._simple_cache = {}  # type: typing.Dict[FuncType, typing.Any]
         self._parent = parent
         self._restrict = None if restrict is None else set(restrict)
         self.inv = InvalidatorSession(self)
@@ -108,13 +136,19 @@ class Session(BaseSession):
                  _args: PosType, _kwargs: KwdType) -> typing.Any:
         return self
 
+    def simple_pre_call(self, _func: FuncType) -> typing.Any:
+        return self
+
     def setcache(self, ret: typing.Any = None,
                  exc: typing.Optional[Exception] = None) -> 'SetCacheSession':
         """Get a SetCacheSession using the specified return value.
 
         Args:
+
             ret: The return value if exc is None.
-            exc: The exception to raise.
+
+            exc: The exception to raise.  Works only if the function
+                takes arguments other than the first session argument.
         """
         return SetCacheSession(self, ret, exc)
 
@@ -161,6 +195,9 @@ class Session(BaseSession):
                      kwargs: KwdType, entry: ResType) -> None:
         if self._disabled:
             return
+        if _no_arg(func):
+            self._simple_cache[func] = entry[0]
+            return
         if func not in self._cache:
             self._cache[func] = {}
         self._cache[func][self._key(args, kwargs)] = entry
@@ -173,14 +210,27 @@ class Session(BaseSession):
         return ret if (ret is not None or self._parent is None) \
             else self._parent.get_cache(func, *args, **kwargs)
 
+    def simple_get_cache(self, func: FuncType) -> typing.Any:
+        if not self._parent:
+            return self._simple_cache.get(func, MISSING)
+        ret = MISSING
+        if not self._parent_only(func) and func in self._simple_cache:
+            ret = self._simple_cache[func]
+        return ret if (ret is not MISSING or self._parent is None) \
+            else self._parent.simple_get_cache(func)
+
     def _parent_only(self, func: FuncType) -> bool:
         return self._restrict is not None and func not in self._restrict
 
     def invalidate(self, func: FuncType,
                    *args: typing.Any, **kwargs: typing.Any) -> None:
         """Invalidate the result of a single function call."""
-        if func in self._cache:
-            self._cache[func].pop(self._key(args, kwargs), None)
+        if _no_arg(func):
+            if func in self._simple_cache:
+                self._simple_cache.pop(func, None)
+        else:
+            if func in self._cache:
+                self._cache[func].pop(self._key(args, kwargs), None)
 
     def invalidate_all(self, func: typing.Optional[FuncType] = None) -> None:
         """Invalidate all results, possibly restricted to a function call.
@@ -193,11 +243,14 @@ class Session(BaseSession):
         """
         if func:
             self._cache.pop(func, None)
+            self._simple_cache.pop(func, None)
             return
         for cfunc in set(self._cache):
-            if cfunc in PERSISTENT_FUNCS:
-                continue
-            del self._cache[cfunc]
+            if cfunc not in PERSISTENT_FUNCS:
+                del self._cache[cfunc]
+        for cfunc in set(self._simple_cache):
+            if cfunc not in PERSISTENT_FUNCS:
+                del self._simple_cache[cfunc]
 
     def invalidate_by_pkey(self, pkey: str) -> None:
         """Invalidate all results for all function with a persistence key.
@@ -208,6 +261,9 @@ class Session(BaseSession):
         for func in set(self._cache):
             if func in PKEY_FUNCS.get(pkey, set()):
                 del self._cache[func]
+        for func in set(self._simple_cache):
+            if func in PKEY_FUNCS.get(pkey, set()):
+                del self._simple_cache[func]
 
     @contextlib.contextmanager
     def nocache(self) -> typing.Iterator[None]:
@@ -242,6 +298,11 @@ class InvalidatorSession(BaseSession):
         self._session.invalidate(func, *args, **kwargs)
         return None
 
+    def simple_pre_call(
+            self, func: FuncType) -> typing.Optional['BaseSession']:
+        self._session.invalidate(func)
+        return None
+
 
 class CallOnlySession(BaseSession):
     """Session which performs call only without caching."""
@@ -250,6 +311,14 @@ class CallOnlySession(BaseSession):
 
     def pre_call(self, _func: FuncType,
                  _args: PosType, _kwargs: KwdType) -> typing.Any:
+        """Call a function without caching.
+
+        This normally calls a function directly, but may be overridden
+        for other behavior.
+        """
+        return self._session
+
+    def simple_pre_call(self, _func: FuncType) -> typing.Any:
         """Call a function without caching.
 
         This normally calls a function directly, but may be overridden
@@ -295,14 +364,19 @@ def gcached(ref: bool = False, persistent: typing.Union[bool, str] = False) \
             the cache.
     """
     def _deco(func: FuncT) -> FuncT:
-        return typing.cast(
-            FuncT, functools.wraps(func)(_gc_func(func, ref, persistent)))
+        if _no_arg(func):
+            ret = _gc0_func(func, ref)
+        else:
+            ret = _gc_func(func, ref)
+        if persistent is not False:
+            PERSISTENT_FUNCS.add(ret)
+            if isinstance(persistent, str):
+                PKEY_FUNCS[persistent].add(ret)
+        return typing.cast(FuncT, functools.wraps(func)(ret))
     return _deco
 
 
-def _gc_func(
-    func: FuncType, ref: bool, persistent: typing.Union[bool, str]
-) -> FuncType:
+def _gc_func(func: FuncType, ref: bool) -> FuncType:
     def _func(session: BaseSession, *args: typing.Any,
               **kwargs: typing.Any) -> typing.Any:
         entry = session.get_cache(_func, *args, **kwargs)
@@ -321,10 +395,26 @@ def _gc_func(
             raise
         session.cache(_func, ret, *args, **kwargs)
         return ret if ref else copy.deepcopy(ret)
-    if persistent is not False:
-        PERSISTENT_FUNCS.add(_func)
-        if isinstance(persistent, str):
-            PKEY_FUNCS[persistent].add(_func)
+    return _func
+
+
+def _gc0_func(func: FuncType, ref: bool) -> FuncType:
+    # Simplified version of _gc_func that does not do varargs.  In
+    # such usages, the session reduces to a singleton, which might be
+    # used very often in the program.  It is vital that the getter is
+    # very fast.  We speed it up by (1) have a simple version of
+    # get_cache and pre_call that does not forwarding arguments, (2)
+    # use a simplified cache, (3) do not process exceptions, and (4)
+    # have a special case in simple_get_cache() for the usual case
+    # where no parent is used.
+    def _func(session: BaseSession) -> typing.Any:
+        ret = session.simple_get_cache(_func)
+        if ret is not MISSING:
+            return ret
+        call_session = session.simple_pre_call(_func)
+        ret = func(call_session) if call_session else None
+        session.cache(_func, ret, (), {})
+        return ret if ref else copy.deepcopy(ret)
     return _func
 
 

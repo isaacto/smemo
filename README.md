@@ -76,6 +76,13 @@ returned object without affecting the cache.  If that is undesirable
 object returned), you would replace `@smemo.cached` by
 `@smemo.rcached`.
 
+A simpler cache is used for functions that takes just the session
+argument.  We will not forward function arguments and keyword
+arguments in this case, and exceptions are not cached.  This is to
+speed up the common use case where the session is used as a global
+objects store.  In this case the `simple_get_cache` function is used
+instead of `get_cache`.
+
 For many purposes these are good enough.  But at times some of the
 values (e.g., 3 and 1 above) are really constants for a session, and
 you can save a lot of space by not including them in the keys of the
@@ -181,7 +188,7 @@ Then you can put and get values as follows:
 
     mydict(session.setcache({'pi': 3.1415936, 'e': 2.7182818}), 'const')
     print(mydict(session, 'const')['pi'])
-    
+
 Note that this mechanism, when combined with nested sessions, can be
 used as a poor man dependency injection mechanism.  All you need to do
 is to pass a session when you invoke any top-level function, and
@@ -231,12 +238,22 @@ implementation.  It is a rather simple interface:
         form `(ret_val, exception)`, where the `ret_val` is used if
         `exception` is None.
 
+  * `simple_get_cache(func)`
+
+      * Same as `get_cache`, used if `func` takes the session argument
+        only.
+
   * `pre_call(func, args, kwargs)`
 
       * When cache entry is not found or is skipped, this function is
         called to determine the session to call the actual function.
         If None is returned, the actual function is not called, and it
         is treated as None being returned.
+
+  * `simple_pre_call(func)`
+
+      * Same as `pre_call`, used if `func` takes the session argument
+        only.
 
   * `cache_exc(func, _exc, *args, **kwargs)`
 
