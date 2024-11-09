@@ -30,8 +30,8 @@ PKEY_FUNCS = collections.defaultdict(
 class BaseSession:
     """Session management interface."""
 
-    def get_cache(self, func: FuncType, *args: typing.Any,
-                  **kwargs: typing.Any) -> typing.Any:
+    def get_cache(self, func: FuncType, *_args: typing.Any,
+                  **_kwargs: typing.Any) -> typing.Any:
         """Get the cached result for a function
 
         Args:
@@ -40,10 +40,10 @@ class BaseSession:
             kwargs: The keyword arguments used to call the function
 
         """
-        return None
+        _ = func
 
-    def pre_call(self, func: FuncType, args: PosType,
-                 kwargs: KwdType) -> typing.Optional['BaseSession']:
+    def pre_call(self, _func: FuncType, _args: PosType,
+                 _kwargs: KwdType) -> typing.Optional['BaseSession']:
         """Called before actually checking cache.
 
         This returns the session for making the call.  If it returns
@@ -104,8 +104,8 @@ class Session(BaseSession):
         self.inv = InvalidatorSession(self)
         self.callonly = CallOnlySession(self)
 
-    def pre_call(self, func: FuncType,
-                 args: PosType, kwargs: KwdType) -> typing.Any:
+    def pre_call(self, _func: FuncType,
+                 _args: PosType, _kwargs: KwdType) -> typing.Any:
         return self
 
     def setcache(self, ret: typing.Any = None,
@@ -165,9 +165,8 @@ class Session(BaseSession):
             self._cache[func] = {}
         self._cache[func][self._key(args, kwargs)] = entry
 
-    def get_cache(self, func: FuncType,
-                  *args: typing.Any, **kwargs: typing.Any) \
-            -> typing.Optional[ResType]:
+    def get_cache(self, func: FuncType, *args: typing.Any,
+                  **kwargs: typing.Any) -> typing.Optional[ResType]:
         ret = None
         if not self._parent_only(func) and func in self._cache:
             ret = self._cache[func].get(self._key(args, kwargs))
@@ -195,10 +194,10 @@ class Session(BaseSession):
         if func:
             self._cache.pop(func, None)
             return
-        for func in set(self._cache):
-            if func in PERSISTENT_FUNCS:
+        for cfunc in set(self._cache):
+            if cfunc in PERSISTENT_FUNCS:
                 continue
-            del self._cache[func]
+            del self._cache[cfunc]
 
     def invalidate_by_pkey(self, pkey: str) -> None:
         """Invalidate all results for all function with a persistence key.
@@ -237,6 +236,7 @@ class InvalidatorSession(BaseSession):
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    # pylint: disable=useless-return
     def pre_call(self, func: FuncType, args: PosType,
                  kwargs: KwdType) -> typing.Optional['BaseSession']:
         self._session.invalidate(func, *args, **kwargs)
@@ -248,8 +248,8 @@ class CallOnlySession(BaseSession):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def pre_call(self, func: FuncType,
-                 args: PosType, kwargs: KwdType) -> typing.Any:
+    def pre_call(self, _func: FuncType,
+                 _args: PosType, _kwargs: KwdType) -> typing.Any:
         """Call a function without caching.
 
         This normally calls a function directly, but may be overridden
@@ -273,6 +273,7 @@ class SetCacheSession(BaseSession):
         else:
             self._session.cache(func, self._ret, *args, **kwargs)
 
+
 FuncT = typing.TypeVar('FuncT', bound=typing.Callable[..., typing.Any])
 
 
@@ -294,31 +295,37 @@ def gcached(ref: bool = False, persistent: typing.Union[bool, str] = False) \
             the cache.
     """
     def _deco(func: FuncT) -> FuncT:
-        @functools.wraps(func)
-        def _func(session: BaseSession, *args: typing.Any,
-                  **kwargs: typing.Any) -> typing.Any:
-            entry = session.get_cache(_func, *args, **kwargs)
-            if entry:
-                if entry[1]:
-                    entry[1].__traceback__ = None  # type: ignore
-                    raise entry[1]
-                return entry[0]
-            try:
-                ret = None  # type: typing.Any
-                call_session = session.pre_call(_func, args, kwargs)
-                if call_session:
-                    ret = func(call_session, *args, **kwargs)
-            except Exception as exc:
-                session.cache_exc(_func, exc, *args, **kwargs)
-                raise
-            session.cache(_func, ret, *args, **kwargs)
-            return ret if ref else copy.deepcopy(ret)
-        if persistent is not False:
-            PERSISTENT_FUNCS.add(_func)
-            if isinstance(persistent, str):
-                PKEY_FUNCS[persistent].add(_func)
-        return typing.cast(FuncT, _func)
+        return typing.cast(
+            FuncT, functools.wraps(func)(_gc_func(func, ref, persistent)))
     return _deco
+
+
+def _gc_func(
+    func: FuncType, ref: bool, persistent: typing.Union[bool, str]
+) -> FuncType:
+    def _func(session: BaseSession, *args: typing.Any,
+              **kwargs: typing.Any) -> typing.Any:
+        entry = session.get_cache(_func, *args, **kwargs)
+        if entry:
+            if entry[1]:
+                entry[1].__traceback__ = None  # type: ignore
+                raise entry[1]
+            return entry[0]
+        try:
+            ret = None  # type: typing.Any
+            call_session = session.pre_call(_func, args, kwargs)
+            if call_session:
+                ret = func(call_session, *args, **kwargs)
+        except Exception as exc:
+            session.cache_exc(_func, exc, *args, **kwargs)
+            raise
+        session.cache(_func, ret, *args, **kwargs)
+        return ret if ref else copy.deepcopy(ret)
+    if persistent is not False:
+        PERSISTENT_FUNCS.add(_func)
+        if isinstance(persistent, str):
+            PKEY_FUNCS[persistent].add(_func)
+    return _func
 
 
 def cached(func: FuncT) -> FuncT:
@@ -349,4 +356,4 @@ def prcached(func: FuncT) -> FuncT:
 def getter(session: BaseSession, *args: typing.Any, **kwargs: typing.Any) \
         -> typing.Any:
     """The underlying function to get a value from the cache."""
-    raise KeyError('No value cached for args %s %s' % (args, kwargs))
+    raise KeyError(f'No value cached for args {args} {kwargs}')
