@@ -16,10 +16,10 @@ __version__ = '0.8'
 
 
 FuncType = typing.Callable[..., typing.Any]
-PosType = typing.Tuple[typing.Any, ...]
-KwdType = typing.Dict[str, typing.Any]
-KeyType = typing.Tuple[PosType, typing.Any]
-ResType = typing.Tuple[typing.Any, typing.Optional[Exception]]
+PosType = tuple[typing.Any, ...]
+KwdType = dict[str, typing.Any]
+KeyType = tuple[PosType, typing.Any]
+ResType = tuple[typing.Any, typing.Optional[Exception]]
 
 
 PICKLED = object()
@@ -30,9 +30,8 @@ MISSING = object()
 """Marker object to denote missing value in cache."""
 
 
-PERSISTENT_FUNCS = set()  # type: typing.Set[FuncType]
-PKEY_FUNCS = collections.defaultdict(
-    set)  # type: typing.Dict[str, typing.Set[FuncType]]
+PERSISTENT_FUNCS: set[FuncType] = set()
+PKEY_FUNCS: dict[str, set[FuncType]] = collections.defaultdict(set)
 
 
 def _no_arg(func: FuncType) -> bool:
@@ -127,9 +126,8 @@ class Session(BaseSession):
                  restrict: typing.Optional[typing.Iterable[FuncType]]
                      = None) -> None:
         self._disabled = False
-        self._cache \
-            = {}  # type: typing.Dict[FuncType, typing.Dict[KeyType, ResType]]
-        self._simple_cache = {}  # type: typing.Dict[FuncType, typing.Any]
+        self._cache: dict[FuncType, dict[KeyType, ResType]] = {}
+        self._simple_cache: dict[FuncType, typing.Any] = {}
         self._parent = parent
         self._restrict = None if restrict is None else set(restrict)
         self.inv = InvalidatorSession(self)
@@ -281,8 +279,7 @@ class Session(BaseSession):
             hash(args)
         except TypeError:
             args = (PICKLED, pickle.dumps(args))
-        kwlist = tuple(
-            sorted(kwargs.items()))  # type: typing.Tuple[typing.Any, ...]
+        kwlist: tuple[typing.Any, ...] = tuple(sorted(kwargs.items()))
         try:
             hash(kwlist)
         except TypeError:
@@ -389,7 +386,7 @@ def _gc_func(func: FuncType, ref: bool) -> FuncType:
                 raise entry[1]
             return entry[0]
         try:
-            ret = None  # type: typing.Any
+            ret: typing.Any = None
             call_session = session.pre_call(_func, args, kwargs)
             if call_session:
                 ret = func(call_session, *args, **kwargs)

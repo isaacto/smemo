@@ -1,5 +1,3 @@
-import typing
-
 import pytest
 
 import smemo
@@ -56,12 +54,12 @@ def test_get_put():
 
 
 @smemo.gcached(ref=True, persistent=True)
-def do_count(session: smemo.BaseSession, n: int = 0) -> typing.List[int]:
+def do_count(session: smemo.BaseSession, n: int = 0) -> list[int]:
     return smemo.getter(session, do_count)
 
 
 @smemo.gcached(ref=True, persistent='test_pkey')
-def do_count2(session: smemo.BaseSession, n: int = 0) -> typing.List[int]:
+def do_count2(session: smemo.BaseSession, n: int = 0) -> list[int]:
     return do_count(session)
 
 
@@ -135,14 +133,14 @@ def test_exc():
 
 
 @smemo.rcached
-def func4(session: smemo.BaseSession, val: typing.List[int]) -> int:
+def func4(session: smemo.BaseSession, val: list[int]) -> int:
     counter = session.getval('counter')
     counter[0] += 1
     return sum(val)
 
 
 @smemo.prcached
-def func4a(session: smemo.BaseSession, val: typing.List[int]) -> int:
+def func4a(session: smemo.BaseSession, val: list[int]) -> int:
     counter = session.getval('counter')
     counter[0] += 1
     return sum(val)
