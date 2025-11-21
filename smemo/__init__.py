@@ -12,6 +12,9 @@ import pickle
 import typing
 
 
+__version__ = '0.8'
+
+
 FuncType = typing.Callable[..., typing.Any]
 PosType = typing.Tuple[typing.Any, ...]
 KwdType = typing.Dict[str, typing.Any]
