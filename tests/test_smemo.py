@@ -1,3 +1,5 @@
+import pickle
+
 import pytest
 
 import smemo
@@ -232,3 +234,51 @@ def test_nested():
     smemo.getter(child2.setcache(exc=RuntimeError('hello')), 'val')
     with pytest.raises(RuntimeError):
         parent.getval('val')
+
+
+@smemo.rcached
+def func6(session: smemo.BaseSession, **kwargs: int) -> dict[str, int]:
+    return kwargs
+
+
+def test_reserved_args():
+    # The arguments the machinery itself uses are positional-only, so a
+    # user is free to pass a keyword argument of any of these names.
+    session = smemo.Session()
+    for name in ('func', 'args', 'kwargs', '_val', '_exc'):
+        assert func6(session, **{name: 1}) == {name: 1}
+        assert func6(session, **{name: 1}) == {name: 1}
+
+
+def test_session_positional():
+    # The session proper is positional-only both when calling a cached
+    # function and within the function itself, so a user keyword
+    # argument named "session" cannot be passed through.
+    session = smemo.Session()
+    with pytest.raises(TypeError):
+        func6(session=session)  # type: ignore
+    with pytest.raises(TypeError):
+        func6(session, session=1)
+
+
+def test_res_type():
+    session = smemo.Session()
+    assert func1(session, 4) == 5
+    entry = session.get_cache(func1, 4)
+    assert entry == (5, None)
+    value, exc = entry
+    assert (value, exc) == (5, None)
+    assert (entry[0], entry[1]) == (5, None)
+    # Entries must be exact tuples.  A tuple subclass (e.g. a NamedTuple)
+    # defeats CPython's tuple specializations and costs a few percent on
+    # every cache hit, which is the point of the whole module.
+    assert type(entry) is tuple
+
+
+def test_sentinels():
+    assert repr(smemo.MISSING) == 'MISSING'
+    assert repr(smemo.PICKLED) == 'PICKLED'
+    assert pickle.loads(pickle.dumps(smemo.MISSING)) is smemo.MISSING
+    assert pickle.loads(pickle.dumps(smemo.PICKLED)) is smemo.PICKLED
+    session = smemo.Session()
+    assert session.simple_get_cache(func5) is smemo.MISSING

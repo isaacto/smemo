@@ -4,6 +4,7 @@ Allow functions to be written naturally with explicit cache control.
 """
 
 import collections
+import collections.abc
 import contextlib
 import copy
 import functools
@@ -15,18 +16,42 @@ import typing
 __version__ = '0.8'
 
 
-FuncType = typing.Callable[..., typing.Any]
+FuncType = collections.abc.Callable[..., typing.Any]
 PosType = tuple[typing.Any, ...]
 KwdType = dict[str, typing.Any]
 KeyType = tuple[PosType, typing.Any]
+
+
 ResType = tuple[typing.Any, typing.Optional[Exception]]
+"""The outcome of a call, as stored in the cache: (value, exception).
+
+The value is used if the exception is None.  This has to stay an exact
+tuple instead of a NamedTuple subclass: cached entries are read on every
+hit, and CPython does not apply its tuple specializations to tuple
+subclasses, which costs a few percent on the retrieval path.
+"""
 
 
-PICKLED = object()
+class _Sentinel:
+    """Marker object which identifies itself when printed or pickled."""
+
+    __slots__ = ('_name',)
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __repr__(self) -> str:
+        return self._name
+
+    def __reduce__(self) -> str:
+        return self._name
+
+
+PICKLED = _Sentinel('PICKLED')
 """Marker object to identify pickled keys."""
 
 
-MISSING = object()
+MISSING = _Sentinel('MISSING')
 """Marker object to denote missing value in cache."""
 
 
@@ -41,7 +66,7 @@ def _no_arg(func: FuncType) -> bool:
 class BaseSession:
     """Session management interface."""
 
-    def get_cache(self, func: FuncType, *_args: typing.Any,
+    def get_cache(self, func: FuncType, /, *_args: typing.Any,
                   **_kwargs: typing.Any) -> typing.Any:
         """Get the cached result for a function.
 
@@ -52,7 +77,7 @@ class BaseSession:
         """
         _ = func
 
-    def simple_get_cache(self, func: FuncType) -> typing.Any:
+    def simple_get_cache(self, func: FuncType, /) -> typing.Any:
         """Like get_cache, but for no-arg functions.
 
         Args:
@@ -85,7 +110,7 @@ class BaseSession:
         """
         return None
 
-    def cache_exc(self, func: FuncType, _exc: Exception,
+    def cache_exc(self, func: FuncType, _exc: Exception, /,
                   *args: typing.Any, **kwargs: typing.Any) -> None:
         """Insert an exception return as the cached value for a function call.
 
@@ -96,7 +121,7 @@ class BaseSession:
             kwargs: The keyword arguments.
         """
 
-    def cache(self, func: FuncType, _val: typing.Any,
+    def cache(self, func: FuncType, _val: typing.Any, /,
               *args: typing.Any, **kwargs: typing.Any) -> None:
         """Insert a value as the cached value for a function call.
 
@@ -123,7 +148,7 @@ class Session(BaseSession):
             parent, for get_cache, cache and cache_exc operations.
     """
     def __init__(self, parent: typing.Optional[BaseSession] = None,
-                 restrict: typing.Optional[typing.Iterable[FuncType]]
+                 restrict: typing.Optional[collections.abc.Iterable[FuncType]]
                      = None) -> None:
         self._disabled = False
         self._cache: dict[FuncType, dict[KeyType, ResType]] = {}
@@ -176,7 +201,7 @@ class Session(BaseSession):
         """
         self.cache(getter, val, *args, **kwargs)
 
-    def cache(self, func: FuncType, _val: typing.Any,
+    def cache(self, func: FuncType, _val: typing.Any, /,
               *args: typing.Any, **kwargs: typing.Any) -> None:
         if self._parent_only(func):
             assert self._parent
@@ -184,7 +209,7 @@ class Session(BaseSession):
         else:
             self._cache_store(func, args, kwargs, (_val, None))
 
-    def cache_exc(self, func: FuncType, _exc: Exception,
+    def cache_exc(self, func: FuncType, _exc: Exception, /,
                   *args: typing.Any, **kwargs: typing.Any) -> None:
         if self._parent_only(func):
             assert self._parent
@@ -203,7 +228,7 @@ class Session(BaseSession):
             self._cache[func] = {}
         self._cache[func][self._key(args, kwargs)] = entry
 
-    def get_cache(self, func: FuncType, *args: typing.Any,
+    def get_cache(self, func: FuncType, /, *args: typing.Any,
                   **kwargs: typing.Any) -> typing.Optional[ResType]:
         ret = None
         if not self._parent_only(func) and func in self._cache:
@@ -211,7 +236,7 @@ class Session(BaseSession):
         return ret if (ret is not None or self._parent is None) \
             else self._parent.get_cache(func, *args, **kwargs)
 
-    def simple_get_cache(self, func: FuncType) -> typing.Any:
+    def simple_get_cache(self, func: FuncType, /) -> typing.Any:
         if not self._parent:
             return self._simple_cache.get(func, MISSING)
         ret = MISSING
@@ -223,7 +248,7 @@ class Session(BaseSession):
     def _parent_only(self, func: FuncType) -> bool:
         return self._restrict is not None and func not in self._restrict
 
-    def invalidate(self, func: FuncType,
+    def invalidate(self, func: FuncType, /,
                    *args: typing.Any, **kwargs: typing.Any) -> None:
         """Invalidate the result of a single function call."""
         if _no_arg(func):
@@ -267,7 +292,7 @@ class Session(BaseSession):
                 del self._simple_cache[func]
 
     @contextlib.contextmanager
-    def nocache(self) -> typing.Iterator[None]:
+    def nocache(self) -> collections.abc.Iterator[None]:
         """Establish a context where caching is not performed."""
         old_val = self._disabled
         self._disabled = True
@@ -335,7 +360,7 @@ class SetCacheSession(BaseSession):
         self._ret = ret
         self._exc = exc
 
-    def cache(self, func: FuncType, _val: typing.Any,
+    def cache(self, func: FuncType, _val: typing.Any, /,
               *args: typing.Any, **kwargs: typing.Any) -> None:
         if self._exc:
             self._session.cache_exc(func, self._exc, *args, **kwargs)
@@ -343,11 +368,12 @@ class SetCacheSession(BaseSession):
             self._session.cache(func, self._ret, *args, **kwargs)
 
 
-FuncT = typing.TypeVar('FuncT', bound=typing.Callable[..., typing.Any])
+FuncT = typing.TypeVar('FuncT',
+                       bound=collections.abc.Callable[..., typing.Any])
 
 
 def gcached(ref: bool = False, persistent: typing.Union[bool, str] = False) \
-        -> typing.Callable[[FuncT], FuncT]:
+        -> collections.abc.Callable[[FuncT], FuncT]:
     """Decorator to cache the return value of a function.
 
     This is the generic decorator, and must be called instead of used
@@ -377,7 +403,7 @@ def gcached(ref: bool = False, persistent: typing.Union[bool, str] = False) \
 
 
 def _gc_func(func: FuncType, ref: bool) -> FuncType:
-    def _func(session: BaseSession, *args: typing.Any,
+    def _func(session: BaseSession, /, *args: typing.Any,
               **kwargs: typing.Any) -> typing.Any:
         entry = session.get_cache(_func, *args, **kwargs)
         if entry:
@@ -407,7 +433,7 @@ def _gc0_func(func: FuncType, ref: bool) -> FuncType:
     # use a simplified cache, (3) do not process exceptions, and (4)
     # have a special case in simple_get_cache() for the usual case
     # where no parent is used.
-    def _func(session: BaseSession) -> typing.Any:
+    def _func(session: BaseSession, /) -> typing.Any:
         ret = session.simple_get_cache(_func)
         if ret is not MISSING:
             return ret
@@ -443,7 +469,7 @@ def prcached(func: FuncT) -> FuncT:
 
 
 @prcached
-def getter(session: BaseSession, *args: typing.Any, **kwargs: typing.Any) \
-        -> typing.Any:
+def getter(session: BaseSession, /, *args: typing.Any,
+           **kwargs: typing.Any) -> typing.Any:
     """The underlying function to get a value from the cache."""
     raise KeyError(f'No value cached for args {args} {kwargs}')
