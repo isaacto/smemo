@@ -61,11 +61,12 @@ It can then be called like this:
     session = smemo.Session()
     print(efib(session, 5, 1, 3))
 
-After the call, the session contains entries like `{((2, 1, 3), ()):
-(4, None)}`, the key contains a hashable representation of the
-positional and keyword arguments, while the values are the return
-value or exception raised.  The value can be observed without
-triggering a call to the inner function, by:
+After the call, the session contains entries like
+`{((2, 1, 3), ()): (4, None)}`; the key contains a hashable
+representation of the positional and keyword arguments, while the value
+is a `(value, exception)` pair, of which the value is used when the
+exception is None.  The value can be observed without triggering a call
+to the inner function, by:
 
     print(session.get_cache(efib, 5, 1, 3))
 
@@ -168,20 +169,20 @@ You can force a value into the cache, like one of these:
     session.cache(efib, 5.0, 7)
     session.cache_exc(efib, RuntimeError('My error'), 7)
 
-In this case, it causes efib(7, session) to return 5.0 and raises "My
+In this case, it causes efib(session, 7) to return 5.0 and raises "My
 error" respectively.  This is very useful during unit tests, where at
 times you don't want your functions to actually be called.  Again, we
 have alternative methods which allows mypy to catch type errors:
 
     efib(session.setcache(5.0), 7)
-    efib(session.setcache(exception=RuntimeError('My error')), 7)
+    efib(session.setcache(exc=RuntimeError('My error')), 7)
 
 So, if you want to avoid `getval` and `setval` (which mypy cannot
 check for type errors), you can create functions returning the correct
 type and mark them as persistent instead:
 
     @smemo.gcached(ref=True, persistent=True)
-    def mydict(session: smemo.BaseSession, a: str) -> typing.Dict[str, float]:
+    def mydict(session: smemo.BaseSession, a: str) -> dict[str, float]:
         raise RuntimeError(f'No value set for {a}')
 
 Then you can put and get values as follows:
@@ -204,7 +205,7 @@ Finally, you can call a function without caching it:
 The skipping of caching does not extend to the calls made by efib.  If
 you want that, you can do the following:
 
-    with session.nocache:
+    with session.nocache():
         print(efib(session, 7))
 
 Caching would be disabled for all the duration of the above efib call.
@@ -230,15 +231,15 @@ BaseSession interface, which the Session class is written against.  If
 you want your own facilities, you might want to provide your own
 implementation.  It is a rather simple interface:
 
-  * `get_cache(func, *args, **kwargs)`
+  * `get_cache(func, /, *args, **kwargs)`
 
       * When the user calls the defined function, the function
         object and the positional/keyword arguments are passed to
-        this method to find a cache entry, which should be in the
-        form `(ret_val, exception)`, where the `ret_val` is used if
+        this method to find a cache entry, which should be a
+        `(value, exception)` pair, where the `value` is used if
         `exception` is None.
 
-  * `simple_get_cache(func)`
+  * `simple_get_cache(func, /)`
 
       * Same as `get_cache`, used if `func` takes the session argument
         only.
@@ -255,25 +256,27 @@ implementation.  It is a rather simple interface:
       * Same as `pre_call`, used if `func` takes the session argument
         only.
 
-  * `cache_exc(func, _exc, *args, **kwargs)`
+  * `cache_exc(func, _exc, /, *args, **kwargs)`
 
       * When the actual call generates an exception, this function is
         called to ask the session object to cache the resulting
-        exception.  Note that we usually define the method to have the
-        exception argument named like `_exc`, because the name could
-        clash with names in `kwargs`.
+        exception.
 
-  * `cache_val(func, _val, *args, **kwargs)`
+  * `cache(func, _val, /, *args, **kwargs)`
 
       * When the actual call returns a value, this function is called
-        to ask the session object to cache the result.  Note that we
-        usually define the method to have the exception argument named
-        like `_val`, because the name could clash with names in
-        `kwargs`.
+        to ask the session object to cache the result.
+
+The arguments belonging to the interface itself (`func`, `_val` and
+`_exc`) are positional-only, so they can never clash with names in the
+`kwargs` of the call being cached.  Implementations should do the same.
+Note that this cannot protect a name the user's own function already
+uses: a keyword argument called `session` clashes with the session
+parameter of the decorated function itself, and cannot be passed.
 
 Cache control is actually done by creative use of the interface.  For
 example, `session.inv` is a BaseSession object which returns None upon
 `get_cache` or `pre_call`, but invalidate cache entry upon
-`cache_val`.  And `session.setcache` returns an object which is just
+`cache`.  And `session.setcache` returns an object which is just
 the same as `session.inv` but instead of invalidating the cache, it
 forces a return value or exception to the cache.
