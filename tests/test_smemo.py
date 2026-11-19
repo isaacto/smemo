@@ -1,4 +1,7 @@
+import gc
+import inspect
 import pickle
+import weakref
 
 import pytest
 
@@ -294,3 +297,65 @@ def test_sentinels():
     assert pickle.loads(pickle.dumps(smemo.PICKLED)) is smemo.PICKLED
     session = smemo.Session()
     assert session.simple_get_cache(func5) is smemo.MISSING
+
+
+def test_no_arg_memo():
+    # Whether a function takes the session argument only decides which
+    # cache a session stores it in, so both the store and the invalidate
+    # path ask the question.  Asking costs inspect.signature(), which is
+    # more than a whole cache miss costs, so the answer is remembered.
+    calls = []
+    real = inspect.signature
+
+    def counting(func):
+        calls.append(func)
+        return real(func)
+
+    inspect.signature = counting
+    try:
+        @smemo.rcached
+        def fresh(session: smemo.BaseSession, n: int) -> int:
+            return n
+
+        session = smemo.Session()
+        assert fresh(session, 1) == 1
+        assert len(calls) == 2  # the function as written, then its wrapper
+        assert calls[1] is fresh
+        session.invalidate(fresh, 1)
+        assert fresh(session, 2) == 2  # a second key, so a second store
+        assert len(calls) == 2
+    finally:
+        inspect.signature = real
+
+
+def test_no_arg_memo_lifetime():
+    # The memo must not keep functions alive, or decorating at runtime
+    # would leak everything it ever made.
+    @smemo.rcached
+    def fresh(session: smemo.BaseSession, n: int) -> int:
+        return n
+
+    ref = weakref.ref(fresh)
+    assert fresh(smemo.Session(), 1) == 1
+    del fresh
+    gc.collect()
+    assert ref() is None
+
+
+class NoWeakRef:
+    """A callable a weak reference cannot be made to."""
+    __slots__ = ()
+
+    def __call__(self, session: smemo.BaseSession, n: int) -> int:
+        return n
+
+
+def test_no_weakref_callable():
+    # A session will cache any callable, and the memo holding only weak
+    # references must not turn that into an error, on the first try or
+    # any later one.
+    target = NoWeakRef()
+    session = smemo.Session()
+    for _ in range(2):
+        session.cache(target, 7, 1)
+        assert session.get_cache(target, 1) == (7, None)

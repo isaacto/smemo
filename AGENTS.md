@@ -35,7 +35,7 @@ There is no CI and no pre-commit hook, so local verification is the only gate:
 - The suite is pure in-process (no services, fixtures or goldens) and runs in
   milliseconds. Its assertions pin exact call counts using counters stashed in
   the session (`session.putval([0], 'counter')`), i.e. they encode the
-  memoization behaviour itself - if a count changes, explain why rather than
+  memoization behavior itself - if a count changes, explain why rather than
   editing the number to match.
 
 ### Under Python 3.9
@@ -56,7 +56,7 @@ Keep the code 3.9-compatible: no `match`, no post-3.9 stdlib APIs.
   `typing.Optional` / `typing.Union`**: PEP 604 `X | Y` needs either 3.10 or
   `from __future__ import annotations`, and the latter would break
   `typing.get_type_hints()` on the library's own annotations under 3.9. Do not
-  "modernise" `Optional` to `X | None`.
+  "modernize" `Optional` to `X | None`.
 - **Cache entries must be exact 2-tuples** `(value, exception)`, aliased as
   `ResType`. Do not turn it into a `NamedTuple` or any tuple subclass: measured
   with an interleaved A/B against the previous commit plus a byte-identical
@@ -82,8 +82,17 @@ Keep the code 3.9-compatible: no `match`, no post-3.9 stdlib APIs.
   `simple_pre_call` + `Session._simple_cache`) that does **not** forward
   args/kwargs and does **not** cache exceptions; anything else uses `_gc_func`.
   Adding or removing a parameter silently moves a function between the two paths.
-  Note `_cache_store` and `invalidate` each call `_no_arg`, so every cache *miss*
-  pays for an `inspect.signature()` call; retrieval does not.
+- `_no_arg` is memoized in the weak-keyed `_NO_ARG`, because `_cache_store`
+  and `invalidate` both ask it and `inspect.signature()` costs more than a
+  whole cache miss (~16 us here against 1.4 us for a hit). Measured on the
+  paths that pay: 0.23x on a miss, 0.02-0.08x on an invalidation. Retrieval
+  never asks, and must not start to. Keep the memo weak-keyed - a plain dict
+  is only marginally faster and would leak every function decorated at
+  runtime - and keep both `TypeError` guards: the public `session.cache()`
+  takes any callable, including one a weak reference cannot be made to, and
+  `WeakKeyDictionary` raises `TypeError` on *lookup* for those, not only on
+  insertion. `test_no_arg_memo`, `test_no_arg_memo_lifetime` and
+  `test_no_weakref_callable` cover the answer, the lifetime and the trap.
 - Cache keys and the process-global `PERSISTENT_FUNCS` / `PKEY_FUNCS` registries
   are keyed on the inner `_func` object, not the `functools.wraps`-copied public
   name. Preserve that identity.

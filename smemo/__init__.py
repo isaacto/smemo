@@ -11,6 +11,7 @@ import functools
 import inspect
 import pickle
 import typing
+import weakref
 
 
 __version__ = '0.8'
@@ -59,8 +60,37 @@ PERSISTENT_FUNCS: set[FuncType] = set()
 PKEY_FUNCS: dict[str, set[FuncType]] = collections.defaultdict(set)
 
 
+_NO_ARG: 'weakref.WeakKeyDictionary[FuncType, bool]' = \
+    weakref.WeakKeyDictionary()
+"""Remembered answer of _no_arg(), which is worth memoizing because
+inspect.signature() is slow.  Weakly keyed so that functions decorated at
+runtime are not kept alive by the memo."""
+
+
 def _no_arg(func: FuncType) -> bool:
-    return len(inspect.signature(func).parameters) <= 1
+    """Whether a function takes the session argument only.
+
+    Decorators work this out once, but the cache and invalidate methods of
+    a session are handed a function and have to ask the same question, so
+    the answer is remembered per function.  Callables which cannot be
+    weak-referenced are asked again every time, which is what used to happen
+    to everything.
+
+    Args:
+        func: The function to ask about.
+    """
+    try:
+        return _NO_ARG[func]
+    except (KeyError, TypeError):
+        # A TypeError here means the memo cannot hold this callable at all.
+        # Working it out again is what every function used to cost.
+        pass
+    ret = len(inspect.signature(func).parameters) <= 1
+    try:
+        _NO_ARG[func] = ret
+    except TypeError:
+        pass
+    return ret
 
 
 class BaseSession:
