@@ -7,3 +7,5 @@ dist
 env
 requirements-dev.txt
 *.egg-info
+AGENTS.local.md
+opencode.json
