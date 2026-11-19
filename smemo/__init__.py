@@ -75,7 +75,6 @@ class BaseSession:
             args: The arguments used to call the function
             kwargs: The keyword arguments used to call the function
         """
-        _ = func
 
     def simple_get_cache(self, func: FuncType, /) -> typing.Any:
         """Like get_cache, but for no-arg functions.
@@ -110,28 +109,27 @@ class BaseSession:
         """
         return None
 
-    def cache_exc(self, func: FuncType, _exc: Exception, /,
+    def cache_exc(self, func: FuncType, exc: Exception, /,
                   *args: typing.Any, **kwargs: typing.Any) -> None:
         """Insert an exception return as the cached value for a function call.
 
         Args:
             func: The decorated function.
-            _exc: The exception to cache.
+            exc: The exception to cache.
             args: The positional arguments.
             kwargs: The keyword arguments.
         """
 
-    def cache(self, func: FuncType, _val: typing.Any, /,
+    def cache(self, func: FuncType, val: typing.Any, /,
               *args: typing.Any, **kwargs: typing.Any) -> None:
         """Insert a value as the cached value for a function call.
 
         Args:
             func: The decorated function.
-            _val: The value to cache.
+            val: The value to cache.
             args: The positional arguments.
             kwargs: The keyword arguments.
         """
-        _ = func
 
 
 class Session(BaseSession):
@@ -185,7 +183,7 @@ class Session(BaseSession):
         """
         return getter(self, *args, **kwargs)
 
-    def putval(self, val: typing.Any, *args: typing.Any,
+    def putval(self, val: typing.Any, /, *args: typing.Any,
                **kwargs: typing.Any) -> typing.Any:
         """Put values to be used by getval().
 
@@ -201,21 +199,21 @@ class Session(BaseSession):
         """
         self.cache(getter, val, *args, **kwargs)
 
-    def cache(self, func: FuncType, _val: typing.Any, /,
+    def cache(self, func: FuncType, val: typing.Any, /,
               *args: typing.Any, **kwargs: typing.Any) -> None:
         if self._parent_only(func):
             assert self._parent
-            self._parent.cache(func, _val, *args, **kwargs)
+            self._parent.cache(func, val, *args, **kwargs)
         else:
-            self._cache_store(func, args, kwargs, (_val, None))
+            self._cache_store(func, args, kwargs, (val, None))
 
-    def cache_exc(self, func: FuncType, _exc: Exception, /,
+    def cache_exc(self, func: FuncType, exc: Exception, /,
                   *args: typing.Any, **kwargs: typing.Any) -> None:
         if self._parent_only(func):
             assert self._parent
-            self._parent.cache_exc(func, _exc, *args, **kwargs)
+            self._parent.cache_exc(func, exc, *args, **kwargs)
         else:
-            self._cache_store(func, args, kwargs, (None, _exc))
+            self._cache_store(func, args, kwargs, (None, exc))
 
     def _cache_store(self, func: FuncType, args: PosType,
                      kwargs: KwdType, entry: ResType) -> None:
@@ -360,7 +358,7 @@ class SetCacheSession(BaseSession):
         self._ret = ret
         self._exc = exc
 
-    def cache(self, func: FuncType, _val: typing.Any, /,
+    def cache(self, func: FuncType, val: typing.Any, /,
               *args: typing.Any, **kwargs: typing.Any) -> None:
         if self._exc:
             self._session.cache_exc(func, self._exc, *args, **kwargs)

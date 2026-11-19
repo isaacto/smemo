@@ -256,23 +256,26 @@ implementation.  It is a rather simple interface:
       * Same as `pre_call`, used if `func` takes the session argument
         only.
 
-  * `cache_exc(func, _exc, /, *args, **kwargs)`
+  * `cache_exc(func, exc, /, *args, **kwargs)`
 
       * When the actual call generates an exception, this function is
         called to ask the session object to cache the resulting
         exception.
 
-  * `cache(func, _val, /, *args, **kwargs)`
+  * `cache(func, val, /, *args, **kwargs)`
 
       * When the actual call returns a value, this function is called
         to ask the session object to cache the result.
 
-The arguments belonging to the interface itself (`func`, `_val` and
-`_exc`) are positional-only, so they can never clash with names in the
+The arguments belonging to the interface itself (`func`, `val` and
+`exc`) are positional-only, so they can never clash with names in the
 `kwargs` of the call being cached.  Implementations should do the same.
-Note that this cannot protect a name the user's own function already
-uses: a keyword argument called `session` clashes with the session
-parameter of the decorated function itself, and cannot be passed.
+`Session.putval` does too: its value argument is positional-only, so a
+key can be a keyword argument called `val` as in
+`session.putval(1, val=2)`.  Note that this cannot protect a name the
+user's own function already uses: a keyword argument called `session`
+clashes with the session parameter of the decorated function itself, and
+cannot be passed.
 
 Cache control is actually done by creative use of the interface.  For
 example, `session.inv` is a BaseSession object which returns None upon

@@ -245,7 +245,8 @@ def test_reserved_args():
     # The arguments the machinery itself uses are positional-only, so a
     # user is free to pass a keyword argument of any of these names.
     session = smemo.Session()
-    for name in ('func', 'args', 'kwargs', '_val', '_exc'):
+    for name in ('func', 'args', 'kwargs', 'val', 'exc', 'ret', '_val',
+                 '_exc'):
         assert func6(session, **{name: 1}) == {name: 1}
         assert func6(session, **{name: 1}) == {name: 1}
 
@@ -259,6 +260,17 @@ def test_session_positional():
         func6(session=session)  # type: ignore
     with pytest.raises(TypeError):
         func6(session, session=1)
+
+
+def test_putval_keys():
+    # The value argument of putval() is positional-only, so the key can
+    # use any name at all, including the ones the machinery uses.  Note
+    # that "session" works here even though it cannot be passed as a
+    # keyword argument to a cached function.
+    session = smemo.Session()
+    for name in ('val', 'func', 'exc', 'ret', 'args', 'kwargs', 'session'):
+        session.putval(name, **{name: 1})
+        assert session.getval(**{name: 1}) == name
 
 
 def test_res_type():

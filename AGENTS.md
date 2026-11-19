@@ -19,11 +19,17 @@ There is no CI and no pre-commit hook, so local verification is the only gate:
 - A bare `pytest` fails with `ModuleNotFoundError: No module named 'smemo'`: the
   package is normally not installed into the environment and there is no root
   `conftest.py`, so the source tree must be on `PYTHONPATH`.
-- Type-check the package only. Over `tests/`, mypy reports 5 known `attr-defined`
-  errors (`session.getval` is a `Session` method while the test helpers annotate
-  the parameter as `BaseSession`), and `pylint smemo` reports 2 `unused-argument`
-  warnings on the deliberate no-op `BaseSession` stubs (9.90/10). Both are
-  accepted as they stand; do not refactor working code to chase them.
+- Type-check the package only (`-p smemo`). The same flags over `tests/` add noise
+  that is not a problem: "Function is missing a return type annotation" on every
+  untyped test helper (that flag is meant for the package), and 5 `attr-defined`
+  errors (`session.getval` is a `Session` method while the helpers annotate the
+  parameter as `BaseSession`). That is accepted as it stands; do not refactor
+  working code to chase it. Only the `attr-defined` count is a fixed number; the
+  untyped-def one grows with every test function added.
+- `pylint smemo` is clean (10.00/10), though it is not wired into any menu. The
+  no-op `BaseSession` stubs have docstring-only bodies, which is what makes pylint
+  treat them as abstract; adding any statement to one, even `_ = func`, brings
+  `unused-argument` warnings back for all its arguments.
 - `requirements-dev.txt` is generated from `requirements-dev.in` and is
   gitignored. Edit the `.in` file, never the generated one.
 - The suite is pure in-process (no services, fixtures or goldens) and runs in
@@ -57,11 +63,15 @@ Keep the code 3.9-compatible: no `match`, no post-3.9 stdlib APIs.
   control, subclass instances cost ~2-4% on **every hit** of the arg-taking path,
   because CPython's tuple specializations require an exact tuple. `test_res_type`
   asserts `type(entry) is tuple`. The no-arg fast path is unaffected either way.
-- **Parameters belonging to the machinery (`session`, `func`, `_val`, `_exc`) are
+- **Parameters belonging to the machinery (`session`, `func`, `val`, `exc`) are
   positional-only (`/`).** This is load-bearing, not stylistic: without it a user
-  keyword argument named `func` or `_val` raised `TypeError: got multiple values
-  for argument`. Keep the `/` when touching these signatures, and keep the
-  leading-underscore names.
+  keyword argument named `func` or `val` raised `TypeError: got multiple values
+  for argument`. Since `/` already isolates them from the call's `**kwargs`, the
+  names need no leading underscore - use plain `val`/`exc`. Underscores are for
+  genuinely unused arguments only. `Session.putval`'s value argument is
+  positional-only for the same reason, so a cache key may itself be `val=`;
+  `test_putval_keys` pins that and `setcache(ret=, exc=)` deliberately stays
+  keyword-taking because users pass those names as API.
 - Consequently one limitation is inherent and documented in the README: a user
   keyword argument literally named `session` clashes with the session parameter of
   the function they decorated, and cannot be passed through.
